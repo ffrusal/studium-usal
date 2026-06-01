@@ -1,0 +1,6 @@
+# Renombrá este archivo a ".dev.vars" para probar la IA en local con:
+#   npm run build && npm run pages:dev
+# (NO commitear .dev.vars — ya está en .gitignore)
+
+OPENROUTER_API_KEY=sk-or-tu-clave-aca
+OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
