@@ -202,7 +202,7 @@ const CSS = `
 .su-logo-fallback{width:70px;height:70px;border-radius:50%;margin:0 auto 22px;display:grid;place-items:center;background:rgba(255,255,255,.16);color:#fff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:34px;border:1px solid rgba(255,255,255,.3);}
 .su-cardlogo{width:180px;max-width:100%;height:auto;display:block;margin:4px auto 18px;}
 .su-cardlogo-fb{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-weight:600;font-size:26px;color:var(--verde);margin-bottom:14px;letter-spacing:.04em;}
-.su-brandlogo{height:30px;display:block;flex:0 0 auto;}
+.su-brandlogo{height:30px;display:block;flex:0 0 auto;filter:brightness(0) invert(1);}
 .su-brandfb{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:#fff;font-weight:600;font-size:16px;}
 .su-asidemotto{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-style:italic;font-size:11px;color:rgba(255,255,255,.55);text-align:center;margin-top:12px;letter-spacing:.02em;line-height:1.3;}
 .su-login-card{background:var(--crema-claro);border-radius:20px;padding:34px 30px;box-shadow:0 40px 90px -45px rgba(0,0,0,.6);text-align:left;}
@@ -447,7 +447,6 @@ function Login({ onDone }) {
             <svg className="su-glogo" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.4 5.4 2.5 13.3l7.9 6.1C12.2 13.3 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-2.7-.4-3.9H24v7.4h12.7c-.3 2-1.6 5-4.7 7l7.3 5.6c4.3-4 6.8-9.9 6.8-16.1z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.5 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.3-5.6c-2 1.4-4.7 2.3-8.6 2.3-6.4 0-11.8-3.8-13.6-9.3l-7.9 6.1C6.4 42.6 14.6 48 24 48z"/></svg>
             Continuar con Google
           </button>
-          <p className="su-mini" style={{ marginTop: 12 }}>Para ver tus cátedras reales, entrá como <b>Docente</b> con <span className="su-mono">franciscojose.f@usal.edu.ar</span>.</p>
         </div>
         <p className="su-foot"><span style={{ opacity: .75 }}>Universidad del Salvador</span> · <i className="su-disp">Scientiam do menti, cordi virtutem</i></p>
       </div>
@@ -520,7 +519,7 @@ function AppShell({ session, ctx, chats, setChats, onChange, onLogout, onSwitchR
 function Brand({ sub }) {
   const [ok, setOk] = useState(true);
   return <div className="su-brand">
-    {ok ? <img className="su-brandlogo" src={USAL_LOGO_BLANCO} alt="USAL" onError={() => setOk(false)} /> : <span className="su-brandfb">USAL</span>}
+    {ok ? <img className="su-brandlogo" src={USAL_LOGO} alt="USAL" onError={() => setOk(false)} /> : <span className="su-brandfb">USAL</span>}
     <div className="su-brandtext"><b>Studium</b><span>USAL · {sub}</span></div>
   </div>;
 }
