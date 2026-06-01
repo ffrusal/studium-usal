@@ -22,7 +22,7 @@ export async function onRequestPost({ request, env }) {
 
     const body = {
       model,
-      max_tokens: 1000,
+      max_tokens: 4096,
       messages: [
         ...(system ? [{ role: "system", content: system }] : []),
         ...(Array.isArray(messages) ? messages : []),

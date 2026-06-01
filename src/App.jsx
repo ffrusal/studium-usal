@@ -186,6 +186,7 @@ const ROLES = [
   { id: "estudiante", t: "Estudiante" }, { id: "docente", t: "Docente" }, { id: "autoridad", t: "Autoridad" },
 ];
 const USAL_LOGO = "https://www.usal.edu.ar/wp-content/uploads/2024/08/logoUSAL_verde-e1722984298295.png";
+const USAL_LOGO_BLANCO = "https://www.usal.edu.ar/wp-content/uploads/2023/07/Logo-Blanco.png";
 
 /* ----------------------------- ESTILOS ----------------------------------- */
 const CSS = `
@@ -196,14 +197,13 @@ const CSS = `
 @keyframes su-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.su-rise{animation:su-rise .6s cubic-bezier(.2,.7,.2,1) both;}
 .su-login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(150deg,var(--verde) 0%,var(--verde-osc) 55%,var(--verde-mas-osc) 100%);position:relative;}
 .su-login::before{content:"";position:absolute;inset:0;opacity:.5;background:radial-gradient(700px 350px at 80% 10%,rgba(181,138,46,.22),transparent 60%),radial-gradient(600px 400px at 10% 90%,rgba(255,255,255,.08),transparent 55%);}
-.su-login-inner{position:relative;z-index:1;width:100%;max-width:500px;text-align:center;}
+.su-login-inner{position:relative;z-index:1;width:100%;max-width:430px;text-align:center;}
 .su-logo{height:84px;margin:0 auto 26px;display:block;filter:drop-shadow(0 8px 20px rgba(0,0,0,.25));}
 .su-logo-fallback{width:70px;height:70px;border-radius:50%;margin:0 auto 22px;display:grid;place-items:center;background:rgba(255,255,255,.16);color:#fff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:34px;border:1px solid rgba(255,255,255,.3);}
-.su-cardlogo{width:100%;max-width:380px;height:auto;display:block;margin:4px auto 18px;}
+.su-cardlogo{width:180px;max-width:100%;height:auto;display:block;margin:4px auto 18px;}
 .su-cardlogo-fb{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-weight:600;font-size:26px;color:var(--verde);margin-bottom:14px;letter-spacing:.04em;}
-.su-brandchip{background:#fff;border-radius:9px;padding:5px 9px;display:flex;align-items:center;box-shadow:0 4px 12px -6px rgba(0,0,0,.35);}
-.su-brandchip img{height:26px;display:block;}
-.su-brandchip span{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:var(--verde);font-weight:600;font-size:14px;}
+.su-brandlogo{height:30px;display:block;flex:0 0 auto;}
+.su-brandfb{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:#fff;font-weight:600;font-size:16px;}
 .su-asidemotto{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-style:italic;font-size:11px;color:rgba(255,255,255,.55);text-align:center;margin-top:12px;letter-spacing:.02em;line-height:1.3;}
 .su-login-card{background:var(--crema-claro);border-radius:20px;padding:34px 30px;box-shadow:0 40px 90px -45px rgba(0,0,0,.6);text-align:left;}
 .su-login-title{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-weight:500;font-size:25px;line-height:1.1;margin:0;}
@@ -254,8 +254,8 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 .su-content{padding:26px;flex:1;}
 .su-chatwrap{max-width:820px;margin:0 auto;display:flex;flex-direction:column;height:calc(100vh - 150px);}
 .su-msgs{flex:1;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:6px 2px 18px;}.su-msgs::-webkit-scrollbar{width:8px;}.su-msgs::-webkit-scrollbar-thumb{background:rgba(8,71,59,.2);border-radius:8px;}
-.su-bubble{max-width:80%;padding:13px 16px;border-radius:15px;font-size:15px;line-height:1.55;white-space:pre-wrap;}
-.su-bubble.user{align-self:flex-end;background:var(--verde);color:#fff;border-bottom-right-radius:5px;}
+.su-bubble{max-width:80%;padding:13px 16px;border-radius:15px;font-size:15px;line-height:1.55;}
+.su-bubble.user{align-self:flex-end;background:var(--verde);color:#fff;border-bottom-right-radius:5px;white-space:pre-wrap;}
 .su-bubble.bot{align-self:flex-start;background:#fff;border:1px solid var(--linea);border-bottom-left-radius:5px;}.su-bubble.bot b{color:var(--verde-osc);}
 .su-empty{text-align:center;color:var(--gris);margin:auto;max-width:480px;}
 .su-crest{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(160deg,var(--verde),var(--verde-osc));color:#fff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:24px;margin:0 auto 14px;}
@@ -276,7 +276,18 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 .su-li{display:flex;gap:10px;padding:7px 0;font-size:14.5px;line-height:1.5;}.su-li .mk{color:var(--oro);flex:0 0 auto;}
 .su-tag{display:inline-block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--verde);background:rgba(0,131,87,.10);padding:3px 9px;border-radius:20px;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;margin-bottom:10px;}
 .su-tag.car{color:var(--oro);background:rgba(181,138,46,.12);}
-.su-planout{white-space:pre-wrap;font-size:14.5px;line-height:1.6;}.su-planout h4{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:var(--verde-osc);margin:14px 0 4px;font-size:16px;}
+.su-planout{font-size:14.5px;line-height:1.6;}
+.su-mdp{margin:0 0 9px;line-height:1.6;}
+.su-mdp:last-child{margin-bottom:0;}
+.su-mdh{font-weight:600;color:var(--verde-osc);line-height:1.3;margin:13px 0 6px;}
+.su-mdh1{font-size:18px;}
+.su-mdh2{font-size:16px;}
+.su-mdh3{font-size:15px;}
+.su-mdul{margin:4px 0 10px;padding-left:20px;}
+.su-mdul li{margin:3px 0;line-height:1.55;}
+.su-mdli{margin:3px 0;line-height:1.55;}
+.su-mdq{border-left:3px solid var(--oro);padding:5px 0 5px 13px;margin:8px 0;color:#33433b;font-style:italic;background:rgba(8,71,59,.04);border-radius:0 6px 6px 0;}
+.su-code{background:rgba(8,71,59,.09);padding:1px 6px;border-radius:5px;font-size:.92em;}
 .su-badge{font-size:11px;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;}
 .su-badge.ok{background:rgba(0,131,87,.12);color:var(--verde);}.su-badge.proc{background:rgba(181,138,46,.16);color:var(--oro);}
 .su-doc{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#fff;border:1px solid var(--linea);border-radius:10px;margin-top:8px;font-size:14px;}
@@ -355,8 +366,33 @@ REGLAS:
 - Relacioná con la carrera del estudiante (${carrera}) cuando ayude (este programa lo prevé explícitamente).
 - Español rioplatense, claro y con rigor. Usá **negritas** en términos clave.`;
 }
-function Md({ text }) {
-  return <>{text.split(/(\*\*[^*]+\*\*)/g).map((p, i) => p.startsWith("**") && p.endsWith("**") ? <b key={i}>{p.slice(2, -2)}</b> : <span key={i}>{p}</span>)}</>;
+function inline(text) {
+  const parts = String(text).split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`)/g);
+  return parts.map((p, i) => {
+    if (p.startsWith("**") && p.endsWith("**")) return <b key={i}>{p.slice(2, -2)}</b>;
+    if (p.startsWith("`") && p.endsWith("`")) return <code key={i} className="su-code">{p.slice(1, -1)}</code>;
+    if (p.startsWith("*") && p.endsWith("*") && p.length > 2) return <i key={i}>{p.slice(1, -1)}</i>;
+    return <span key={i}>{p}</span>;
+  });
+}
+function MD({ text }) {
+  const lines = String(text || "").split("\n");
+  const out = []; let bullets = null;
+  const flush = () => { if (bullets) { out.push(<ul key={"u" + out.length} className="su-mdul">{bullets}</ul>); bullets = null; } };
+  lines.forEach((raw, idx) => {
+    const t = raw.trim();
+    if (!t) { flush(); return; }
+    const h = t.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { flush(); const lvl = Math.min(h[1].length, 3); out.push(<div key={idx} className={"su-mdh su-mdh" + lvl}>{inline(h[2])}</div>); return; }
+    if (/^>\s?/.test(t)) { flush(); out.push(<div key={idx} className="su-mdq">{inline(t.replace(/^>\s?/, ""))}</div>); return; }
+    const b = t.match(/^[-*•]\s+(.*)$/);
+    if (b) { if (!bullets) bullets = []; bullets.push(<li key={idx}>{inline(b[1])}</li>); return; }
+    const n = t.match(/^(\d+)\.\s+(.*)$/);
+    if (n) { flush(); out.push(<div key={idx} className="su-mdli"><b>{n[1]}.</b> {inline(n[2])}</div>); return; }
+    flush(); out.push(<p key={idx} className="su-mdp">{inline(t)}</p>);
+  });
+  flush();
+  return <>{out}</>;
 }
 
 /* ============================== APP ===================================== */
@@ -484,7 +520,7 @@ function AppShell({ session, ctx, chats, setChats, onChange, onLogout, onSwitchR
 function Brand({ sub }) {
   const [ok, setOk] = useState(true);
   return <div className="su-brand">
-    <div className="su-brandchip">{ok ? <img src={USAL_LOGO} alt="USAL" onError={() => setOk(false)} /> : <span>USAL</span>}</div>
+    {ok ? <img className="su-brandlogo" src={USAL_LOGO_BLANCO} alt="USAL" onError={() => setOk(false)} /> : <span className="su-brandfb">USAL</span>}
     <div className="su-brandtext"><b>Studium</b><span>USAL · {sub}</span></div>
   </div>;
 }
@@ -526,7 +562,7 @@ function Asistente({ ctx, msgs, setMsgs }) {
             <div className="su-chips">{sugerencias.map((s) => <span key={s} className="su-chip" onClick={() => send(s)}>{s}</span>)}</div>
           </div>
         )}
-        {msgs.map((m, i) => <div key={i} className={`su-bubble ${m.role === "user" ? "user" : "bot"} su-rise`}>{m.role === "assistant" ? <Md text={m.content} /> : m.content}</div>)}
+        {msgs.map((m, i) => <div key={i} className={`su-bubble ${m.role === "user" ? "user" : "bot"} su-rise`}>{m.role === "assistant" ? <MD text={m.content} /> : m.content}</div>)}
         {loading && <div className="su-bubble bot"><span className="su-dots"><span /><span /><span /></span></div>}
         <div ref={endRef} />
       </div>
@@ -562,7 +598,7 @@ function Autoevaluacion({ cat, materia, carrera }) {
         <div style={{ marginTop: 10 }}><label className="su-label">Unidad</label><select className="su-field" value={unidad} onChange={(e) => setUnidad(e.target.value)}><option value="todas">Todas las unidades</option>{cat.unidades.map((u) => <option key={u.titulo} value={u.titulo}>{u.titulo}</option>)}</select></div>
         <button className="su-btn full" style={{ marginTop: 16 }} onClick={generar} disabled={loading}>{loading ? "Generando preguntas…" : "Generar autoevaluación"}</button>
       </div>
-      {out && <div className="su-section su-rise"><div className="su-row" style={{ justifyContent: "space-between" }}><h3 style={{ margin: 0 }}>Tu autoevaluación</h3><button className="su-btn ghost sm" onClick={generar} disabled={loading}>↻ Otro set</button></div><div className="su-divider" /><div className="su-planout">{out.split("\n").map((l, i) => l.startsWith("#") ? <h4 key={i}>{l.replace(/^#+\s*/, "")}</h4> : <div key={i}><Md text={l} /></div>)}</div></div>}
+      {out && <div className="su-section su-rise"><div className="su-row" style={{ justifyContent: "space-between" }}><h3 style={{ margin: 0 }}>Tu autoevaluación</h3><button className="su-btn ghost sm" onClick={generar} disabled={loading}>↻ Otro set</button></div><div className="su-divider" /><div className="su-planout"><MD text={out} /></div></div>}
     </div>
   );
 }
@@ -613,7 +649,7 @@ function Planificador({ cat, materia, carrera }) {
         </div>
         <button className="su-btn full" style={{ marginTop: 16 }} onClick={generar} disabled={loading}>{loading ? "Generando…" : "Generar plan de estudio"}</button>
       </div>
-      {out && <div className="su-section su-rise"><h3>Tu cronograma</h3><div className="su-planout">{out.split("\n").map((l, i) => l.startsWith("#") ? <h4 key={i}>{l.replace(/^#+\s*/, "")}</h4> : <div key={i}><Md text={l} /></div>)}</div></div>}
+      {out && <div className="su-section su-rise"><h3>Tu cronograma</h3><div className="su-planout"><MD text={out} /></div></div>}
     </div>
   );
 }
