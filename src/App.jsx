@@ -202,7 +202,7 @@ const CSS = `
 .su-logo-fallback{width:70px;height:70px;border-radius:50%;margin:0 auto 22px;display:grid;place-items:center;background:rgba(255,255,255,.16);color:#fff;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:34px;border:1px solid rgba(255,255,255,.3);}
 .su-cardlogo{width:180px;max-width:100%;height:auto;display:block;margin:4px auto 18px;}
 .su-cardlogo-fb{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-weight:600;font-size:26px;color:var(--verde);margin-bottom:14px;letter-spacing:.04em;}
-.su-brandlogo{height:30px;display:block;flex:0 0 auto;filter:brightness(0) invert(1);}
+.su-brandlogo{height:30px;display:block;flex:0 0 auto;}
 .su-brandfb{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:#fff;font-weight:600;font-size:16px;}
 .su-asidemotto{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-style:italic;font-size:11px;color:rgba(255,255,255,.55);text-align:center;margin-top:12px;letter-spacing:.02em;line-height:1.3;}
 .su-login-card{background:var(--crema-claro);border-radius:20px;padding:34px 30px;box-shadow:0 40px 90px -45px rgba(0,0,0,.6);text-align:left;}
