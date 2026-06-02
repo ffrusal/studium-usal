@@ -316,6 +316,9 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 @media(max-width:640px){.su-covrow{grid-template-columns:1fr;gap:5px;}}
 .su-bar{height:9px;border-radius:9px;background:rgba(8,71,59,.10);overflow:hidden;}
 .su-bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--verde),var(--oro));border-radius:9px;transition:width .6s cubic-bezier(.2,.7,.2,1);}
+.su-fuentes{margin-top:10px;padding-top:9px;border-top:1px dashed var(--linea);display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.su-fuentes-lbl{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--gris);font-weight:600;margin-right:2px;}
+.su-fuente{font-size:11.5px;background:rgba(0,131,87,.08);color:var(--verde-osc);border:1px solid rgba(0,131,87,.15);border-radius:20px;padding:3px 10px;}
 .su-asidetop{display:flex;align-items:center;gap:11px;margin-bottom:14px;}
 .su-asidetop .su-brand{margin-bottom:0;}
 .su-toggle{flex:0 0 auto;width:34px;height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.10);color:#fff;cursor:pointer;font-size:16px;line-height:1;display:grid;place-items:center;transition:.15s;}
@@ -328,17 +331,17 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 `;
 
 /* --------------------------- MODELO IA ---------------------------------- */
-async function callClaude(messages, system) {
-  // En producción llama a nuestra Pages Function /api/chat, que proxea a OpenRouter
-  // (la API key vive como secret en Cloudflare, nunca en el front).
+async function callClaude(messages, system, catedraId) {
+  // En producción llama a nuestra Pages Function /api/chat (RAG + OpenRouter).
+  // Las claves viven como secret en Cloudflare, nunca en el front.
   const res = await fetch("/api/chat", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, messages }),
+    body: JSON.stringify({ catedraId, system, messages }),
   });
   if (!res.ok) throw new Error("API error " + res.status);
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-  return data.text || "";
+  return { text: data.text || "", fuentes: data.fuentes || [] };
 }
 function systemPrompt(cat, materia, facultad, carrera) {
   const prog = cat.unidades.map((u) => `${u.titulo}\n  - ${u.contenidos.join("\n  - ")}`).join("\n");
@@ -546,7 +549,7 @@ function Asistente({ ctx, msgs, setMsgs }) {
   const send = async (texto) => {
     const content = (texto ?? input).trim(); if (!content || loading) return;
     const next = [...msgs, { role: "user", content }]; setMsgs(next); setInput(""); setLoading(true);
-    try { const r = await callClaude(next.map(({ role, content }) => ({ role, content })), sys); setMsgs([...next, { role: "assistant", content: r || "Sin respuesta." }]); }
+    try { const r = await callClaude(next.map(({ role, content }) => ({ role, content })), sys, catedra.id); setMsgs([...next, { role: "assistant", content: r.text || "Sin respuesta.", fuentes: r.fuentes }]); }
     catch { setMsgs([...next, { role: "assistant", content: "Error al conectar con el asistente. Probá de nuevo." }]); } finally { setLoading(false); }
   };
   return (
@@ -561,7 +564,7 @@ function Asistente({ ctx, msgs, setMsgs }) {
             <div className="su-chips">{sugerencias.map((s) => <span key={s} className="su-chip" onClick={() => send(s)}>{s}</span>)}</div>
           </div>
         )}
-        {msgs.map((m, i) => <div key={i} className={`su-bubble ${m.role === "user" ? "user" : "bot"} su-rise`}>{m.role === "assistant" ? <MD text={m.content} /> : m.content}</div>)}
+        {msgs.map((m, i) => <div key={i} className={`su-bubble ${m.role === "user" ? "user" : "bot"} su-rise`}>{m.role === "assistant" ? <><MD text={m.content} />{m.fuentes && m.fuentes.length > 0 && <div className="su-fuentes"><span className="su-fuentes-lbl">Fuentes</span>{m.fuentes.map((f, k) => <span key={k} className="su-fuente">{f.titulo}{f.pagina ? ` · pág. ${f.pagina}` : ""}</span>)}</div>}</> : m.content}</div>)}
         {loading && <div className="su-bubble bot"><span className="su-dots"><span /><span /><span /></span></div>}
         <div ref={endRef} />
       </div>
@@ -584,7 +587,7 @@ function Autoevaluacion({ cat, materia, carrera }) {
     const foco = unidad === "todas" ? "todas las unidades del programa" : `la "${unidad}"`;
     const sys = `Sos un generador de autoevaluaciones de la USAL para la cátedra de ${materia.nombre} (${cat.docenteNombre}, carrera ${carrera}). Generás preguntas ÚNICAMENTE sobre el programa dado. Modalidades válidas (las de la cátedra): preguntas a desarrollar, opción múltiple y análisis de casos. Para opción múltiple, incluí 4 opciones (a-d) y al final indicá la correcta. Para desarrollar y casos, agregá una breve "clave de respuesta" con los puntos esperados. Markdown claro, numerado.\n\nPROGRAMA:\n${uds}`;
     const prompt = `Generá ${cantidad} preguntas de tipo "${tipo}" sobre ${foco}. Si es "Análisis de casos", ambientá los casos en el campo de ${carrera}.`;
-    try { setOut(await callClaude([{ role: "user", content: prompt }], sys)); } catch { setOut("Error al generar. Probá de nuevo."); } finally { setLoading(false); }
+    try { const r = await callClaude([{ role: "user", content: prompt }], sys); setOut(r.text); } catch { setOut("Error al generar. Probá de nuevo."); } finally { setLoading(false); }
   };
   return (
     <div className="su-page su-rise">
@@ -636,7 +639,7 @@ function Planificador({ cat, materia, carrera }) {
     const prog = cat.unidades.map((u) => `${u.titulo}: ${u.contenidos.slice(0, 4).join("; ")}`).join("\n");
     const sys = `Sos un planificador de estudio de la USAL. Generás cronogramas realistas basados ÚNICAMENTE en el programa dado. Markdown con "## Semana N" y viñetas. Concreto y breve.`;
     const prompt = `Materia: ${materia.nombre} (cátedra ${cat.docenteNombre}, carrera ${carrera}).\nPrograma:\n${prog}\n\nExamen: ${fecha || "sin definir"}. Disponibilidad: ${horas} h/semana.\nArmá un plan semana por semana que cubra todas las unidades y deje una semana de repaso. Indicá unidad, qué leer y objetivo de la semana.`;
-    try { setOut(await callClaude([{ role: "user", content: prompt }], sys)); } catch { setOut("Error al generar. Probá de nuevo."); } finally { setLoading(false); }
+    try { const r = await callClaude([{ role: "user", content: prompt }], sys); setOut(r.text); } catch { setOut("Error al generar. Probá de nuevo."); } finally { setLoading(false); }
   };
   return (
     <div className="su-page su-rise">

@@ -1,6 +1,17 @@
-# Renombrá este archivo a ".dev.vars" para probar la IA en local con:
+# Renombrá este archivo a ".dev.vars" para probar en local con:
 #   npm run build && npm run pages:dev
 # (NO commitear .dev.vars — ya está en .gitignore)
 
+# --- OpenRouter: sirve para la respuesta (LLM) Y para los embeddings del RAG ---
 OPENROUTER_API_KEY=sk-or-tu-clave-aca
 OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
+EMBED_MODEL=nvidia/llama-nemotron-embed-vl-1b-v2
+EMBED_DIM=2048
+
+# --- RAG: vector store (Supabase) ---
+SUPABASE_URL=https://TU-PROYECTO.supabase.co
+SUPABASE_SERVICE_KEY=tu-service-role-key-secreta
+
+# --- RAG: ajustes de búsqueda (opcionales) ---
+RAG_MATCH_COUNT=6
+RAG_MIN_SIM=0.15
