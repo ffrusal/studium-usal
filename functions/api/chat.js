@@ -11,9 +11,8 @@
  * Devuelve:{ text: string, fuentes: [{titulo, pagina, similitud}] }
  *
  * Variables / secrets en Cloudflare Pages:
- *   OPENROUTER_API_KEY      (obligatorio)
+ *   OPENROUTER_API_KEY      (obligatorio; sirve para embeddings Y para la respuesta)
  *   OPENROUTER_MODEL        (opcional, default anthropic/claude-3.5-sonnet)
- *   NVIDIA_API_KEY          (obligatorio, para los embeddings)
  *   EMBED_MODEL             (opcional, default nvidia/llama-nemotron-embed-vl-1b-v2)
  *   EMBED_DIM               (opcional, default 2048)
  *   SUPABASE_URL            (obligatorio)
@@ -25,7 +24,7 @@ export async function onRequestPost({ request, env }) {
   try {
     const { catedraId, system, messages } = await request.json();
 
-    const need = ["OPENROUTER_API_KEY", "NVIDIA_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_KEY"];
+    const need = ["OPENROUTER_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_KEY"];
     for (const k of need) if (!env[k]) return json({ error: `Falta ${k} en el entorno.` }, 500);
 
     const model     = env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
@@ -43,7 +42,7 @@ export async function onRequestPost({ request, env }) {
 
     if (catedraId && pregunta) {
       // 1) embedding de la consulta
-      const qVec = await embedQuery(pregunta, env.NVIDIA_API_KEY, embedModel, embedDim);
+      const qVec = await embedQuery(pregunta, env.OPENROUTER_API_KEY, embedModel, embedDim);
       // 2) búsqueda en Supabase
       const chunks = await matchChunks(env, qVec, catedraId, matchCount, minSim);
       fuentes = chunks.map(c => ({ titulo: c.titulo, pagina: c.pagina, similitud: Number(c.similitud?.toFixed(3)) }));
@@ -83,17 +82,19 @@ export async function onRequestPost({ request, env }) {
   }
 }
 
-// ---- embeddings de la consulta (NVIDIA) ----
+// ---- embeddings de la consulta (OpenRouter, OpenAI-compatible) ----
 async function embedQuery(text, key, model, dim) {
-  const r = await fetch("https://integrate.api.nvidia.com/v1/embeddings", {
+  const r = await fetch("https://openrouter.ai/api/v1/embeddings", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      input: [text], model, input_type: "query",
-      encoding_format: "float", truncate: "END",
-    }),
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://studium-usal.pages.dev",
+      "X-Title": "Studium USAL",
+    },
+    body: JSON.stringify({ input: text, model, encoding_format: "float" }),
   });
-  if (!r.ok) throw new Error(`NVIDIA embeddings ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  if (!r.ok) throw new Error(`OpenRouter embeddings ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const j = await r.json();
   let v = j.data[0].embedding;
   if (v.length > dim) v = v.slice(0, dim);  // Matryoshka: recorte a la dimensión usada
