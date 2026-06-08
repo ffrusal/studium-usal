@@ -174,6 +174,20 @@ function generica(materiaId, docenteNombre, docenteEmail, comision, carrera = nu
   };
 }
 
+const NIVELES_IA = [
+  { v: 0, t: "Nivel 0 · Sin IA" },
+  { v: 1, t: "Nivel 1 · IA de apoyo al estudio" },
+  { v: 2, t: "Nivel 2 · IA como asistente (declarada)" },
+  { v: 3, t: "Nivel 3 · IA integrada (con análisis crítico)" },
+];
+const ACTIVIDADES_SEED = [
+  {
+    id: "act-1", catedraId: "filo-vet-real", titulo: "TP 1 · La pregunta filosófica en la práctica veterinaria",
+    tipo: "Trabajo práctico", fechaEntrega: "2026-06-26", nivelIA: 2,
+    consigna: "A partir de la Unidad I, elaborá un texto breve (600-800 palabras) que responda: ¿qué aporta la pregunta por el *sentido último* a la práctica veterinaria? Incluí al menos dos conceptos del programa (objeto material/formal, división de la filosofía) y un ejemplo de tu propia experiencia o del campo profesional.\n\n**Entrega:** PDF por esta plataforma. **Uso de IA (Nivel 2):** podés usarla para ordenar ideas o pulir redacción, declarándolo al final del trabajo.",
+  },
+];
+
 const CATEDRAS_SEED = [
   FILOSOFIA_VET,
   ETICA_VET,
@@ -213,7 +227,7 @@ const CSS = `
 .su-glogo{width:18px;height:18px;flex:0 0 auto;}
 .su-foot{color:rgba(255,255,255,.85);font-size:11.5px;margin-top:22px;letter-spacing:.04em;}
 .su-seg{display:flex;gap:6px;background:#fff;border:1px solid var(--linea);border-radius:12px;padding:5px;margin-top:6px;}
-.su-seg button{flex:1;border:none;background:transparent;cursor:pointer;padding:8px 4px;border-radius:8px;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;color:var(--gris);transition:.15s;}
+.su-seg button{flex:1;border:none;background:transparent;cursor:pointer;padding:8px 4px;border-radius:8px;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:13px;color:var(--gris);transition:.15s;line-height:1.2;}
 .su-seg button.on{background:var(--verde);color:#fff;}
 .su-center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px;}
 .su-card{width:100%;max-width:760px;background:var(--crema-claro);border:1px solid var(--linea);border-radius:18px;box-shadow:0 30px 70px -40px rgba(8,71,59,.55);padding:36px 32px;}
@@ -319,6 +333,20 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 .su-fuentes{margin-top:10px;padding-top:9px;border-top:1px dashed var(--linea);display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
 .su-fuentes-lbl{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--gris);font-weight:600;margin-right:2px;}
 .su-fuente{font-size:11.5px;background:rgba(0,131,87,.08);color:var(--verde-osc);border:1px solid rgba(0,131,87,.15);border-radius:20px;padding:3px 10px;}
+.su-actcard{padding:18px 20px;}
+.su-acthead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;cursor:pointer;}
+.su-actchevron{color:var(--gris);font-size:15px;flex:0 0 auto;margin-top:4px;}
+.su-acttags{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.su-iachip{font-size:11px;background:rgba(201,162,39,.13);color:#8a6d1c;border:1px solid rgba(201,162,39,.3);border-radius:20px;padding:2px 9px;font-weight:600;}
+.su-due{font-size:12.5px;font-weight:600;border-radius:20px;padding:3px 10px;display:inline-block;margin-top:4px;}
+.su-due.ok{background:rgba(0,131,87,.09);color:var(--verde-osc);}
+.su-due.today{background:rgba(201,162,39,.16);color:#7a5f12;}
+.su-due.late{background:rgba(176,32,32,.10);color:var(--rojo);}
+.su-actbody{margin-top:6px;font-size:14.5px;line-height:1.6;}
+.su-actrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--linea);}
+.su-actrow:last-child{border-bottom:none;}
+.su-actrow b{display:block;color:var(--verde-osc);margin:3px 0;}
+.su-actform{margin-top:6px;}
 .su-asidetop{display:flex;align-items:center;gap:11px;margin-bottom:14px;}
 .su-asidetop .su-brand{margin-bottom:0;}
 .su-toggle{flex:0 0 auto;width:34px;height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.10);color:#fff;cursor:pointer;font-size:16px;line-height:1;display:grid;place-items:center;transition:.15s;}
@@ -405,6 +433,7 @@ export default function StudiumUSAL() {
   const [catedras, setCatedras] = useState(CATEDRAS_SEED);
   const [ctx, setCtx] = useState(null);
   const [chats, setChats] = useState({}); // conversaciones por cátedra: { [catedraId]: msgs[] }
+  const [actividades, setActividades] = useState(ACTIVIDADES_SEED);
   useEffect(() => { if (!document.getElementById("su-style")) { const s = document.createElement("style"); s.id = "su-style"; s.textContent = CSS; document.head.appendChild(s); } }, []);
   const logout = () => { setSession(null); setCtx(null); setChats({}); setStage("login"); };
   const switchRole = (role) => {
@@ -415,8 +444,8 @@ export default function StudiumUSAL() {
     <div className="su-root">
       {stage === "login" && <Login onDone={(s) => { setSession(s); setStage(s.role === "estudiante" ? "onboarding" : "panel"); }} />}
       {stage === "onboarding" && <Onboarding catedras={catedras} onDone={(c) => { setCtx(c); setStage("app"); }} onBack={ctx ? () => setStage("app") : logout} />}
-      {stage === "app" && ctx && <AppShell session={session} ctx={ctx} chats={chats} setChats={setChats} onChange={() => setStage("onboarding")} onLogout={logout} onSwitchRole={switchRole} />}
-      {stage === "panel" && <Panel session={session} catedras={catedras} setCatedras={setCatedras} onLogout={logout} onSwitchRole={switchRole} />}
+      {stage === "app" && ctx && <AppShell session={session} ctx={ctx} chats={chats} setChats={setChats} actividades={actividades} onChange={() => setStage("onboarding")} onLogout={logout} onSwitchRole={switchRole} />}
+      {stage === "panel" && <Panel session={session} catedras={catedras} setCatedras={setCatedras} actividades={actividades} setActividades={setActividades} onLogout={logout} onSwitchRole={switchRole} />}
     </div>
   );
 }
@@ -485,12 +514,13 @@ function Onboarding({ catedras, onDone, onBack }) {
 }
 
 /* --------------------------- APP (estudiante) --------------------------- */
-function AppShell({ session, ctx, chats, setChats, onChange, onLogout, onSwitchRole }) {
+function AppShell({ session, ctx, chats, setChats, actividades, onChange, onLogout, onSwitchRole }) {
   const [tab, setTab] = useState("asistente");
   const [collapsed, setCollapsed] = useState(false);
   const { facultad, carrera, materia, catedra } = ctx;
-  const tabs = [{ id: "asistente", ic: "✺", t: "Asistente" }, { id: "programa", ic: "❧", t: "Programa" }, { id: "biblio", ic: "❦", t: "Bibliografía" }, { id: "autoeval", ic: "✎", t: "Autoevaluación" }, { id: "plan", ic: "◷", t: "Planificador" }];
-  const titulo = { asistente: "Asistente de estudio", programa: "Programa de la cátedra", biblio: "Bibliografía", autoeval: "Autoevaluación", plan: "Planificador" }[tab];
+  const nActs = (actividades || []).filter((a) => a.catedraId === catedra.id).length;
+  const tabs = [{ id: "asistente", ic: "✺", t: "Asistente" }, { id: "actividades", ic: "✉", t: nActs ? `Actividades (${nActs})` : "Actividades" }, { id: "programa", ic: "❧", t: "Programa" }, { id: "biblio", ic: "❦", t: "Bibliografía" }, { id: "autoeval", ic: "✎", t: "Autoevaluación" }, { id: "plan", ic: "◷", t: "Planificador" }];
+  const titulo = { asistente: "Asistente de estudio", actividades: "Actividades", programa: "Programa de la cátedra", biblio: "Bibliografía", autoeval: "Autoevaluación", plan: "Planificador" }[tab];
   const msgs = chats[catedra.id] || [];
   const setMsgs = (next) => setChats((prev) => ({ ...prev, [catedra.id]: typeof next === "function" ? next(prev[catedra.id] || []) : next }));
   return (
@@ -510,6 +540,7 @@ function AppShell({ session, ctx, chats, setChats, onChange, onLogout, onSwitchR
         <div className="su-mobnav">{tabs.map((x) => <button key={x.id} className={tab === x.id ? "on" : ""} onClick={() => setTab(x.id)}>{x.t}</button>)}</div>
         <div className="su-content">
           {tab === "asistente" && <Asistente ctx={ctx} msgs={msgs} setMsgs={setMsgs} />}
+          {tab === "actividades" && <ActividadesAlumno actividades={actividades} catedra={catedra} />}
           {tab === "programa" && <Programa cat={catedra} materia={materia} />}
           {tab === "biblio" && <Bibliografia cat={catedra} />}
           {tab === "autoeval" && <Autoevaluacion cat={catedra} materia={materia} carrera={carrera} />}
@@ -656,15 +687,267 @@ function Planificador({ cat, materia, carrera }) {
   );
 }
 
+/* --------------------------- ACTIVIDADES -------------------------------- */
+function diasRestantes(fecha) {
+  if (!fecha) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const f = new Date(fecha + "T00:00:00");
+  return Math.round((f - hoy) / 86400000);
+}
+function fmtFecha(fecha) {
+  if (!fecha) return "";
+  const [y, m, d] = fecha.split("-");
+  return `${d}/${m}/${y}`;
+}
+function EstadoEntrega({ fecha }) {
+  const d = diasRestantes(fecha);
+  if (d === null) return null;
+  if (d < 0) return <span className="su-due late">Vencida · {fmtFecha(fecha)}</span>;
+  if (d === 0) return <span className="su-due today">Entrega HOY · {fmtFecha(fecha)}</span>;
+  return <span className="su-due ok">Entrega {fmtFecha(fecha)} · faltan {d} día{d === 1 ? "" : "s"}</span>;
+}
+function ActividadesAlumno({ actividades, catedra }) {
+  const [abierta, setAbierta] = useState(null);
+  const lista = (actividades || []).filter((a) => a.catedraId === catedra.id)
+    .sort((a, b) => (a.fechaEntrega || "").localeCompare(b.fechaEntrega || ""));
+  return (
+    <div className="su-page su-rise">
+      {lista.length === 0 && (
+        <div className="su-section" style={{ textAlign: "center", color: "var(--gris)" }}>
+          <div style={{ fontSize: 34, marginBottom: 8 }}>✉</div>
+          Tu docente todavía no publicó actividades para esta cátedra.
+        </div>
+      )}
+      {lista.map((a) => (
+        <div key={a.id} className="su-section su-actcard">
+          <div className="su-acthead" onClick={() => setAbierta(abierta === a.id ? null : a.id)}>
+            <div>
+              <div className="su-acttags"><span className="su-tag">{a.tipo}</span><span className="su-iachip">{NIVELES_IA.find((n) => n.v === a.nivelIA)?.t || "IA: a definir"}</span></div>
+              <h3 style={{ margin: "6px 0 4px" }}>{a.titulo}</h3>
+              <EstadoEntrega fecha={a.fechaEntrega} />
+            </div>
+            <span className="su-actchevron">{abierta === a.id ? "▴" : "▾"}</span>
+          </div>
+          {abierta === a.id && (
+            <div className="su-actbody">
+              <div className="su-divider" />
+              <MD text={a.consigna} />
+              <button className="su-btn full" style={{ marginTop: 14 }} onClick={() => alert("La entrega de trabajos se habilita en la próxima etapa (requiere autenticación institucional).")}>Entregar trabajo</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+function ActividadesDocente({ catedras, actividades, setActividades }) {
+  const [creando, setCreando] = useState(false);
+  const [catId, setCatId] = useState(catedras[0]?.id || "");
+  const [titulo, setTitulo] = useState("");
+  const [tipo, setTipo] = useState("Trabajo práctico");
+  const [fecha, setFecha] = useState("");
+  const [nivelIA, setNivelIA] = useState(2);
+  const [consigna, setConsigna] = useState("");
+  const [genLoading, setGenLoading] = useState(false);
+  const [casoLoading, setCasoLoading] = useState(false);
+  const idsMias = new Set(catedras.map((c) => c.id));
+  const lista = (actividades || []).filter((a) => idsMias.has(a.catedraId))
+    .sort((a, b) => (a.fechaEntrega || "").localeCompare(b.fechaEntrega || ""));
+  const catDe = (id) => catedras.find((c) => c.id === id);
+  const generarConsigna = async () => {
+    const cat = catDe(catId); if (!cat || genLoading) return;
+    setGenLoading(true);
+    const m = MATERIAS.find((x) => x.id === cat.materiaId);
+    const uds = cat.unidades.map((u) => `${u.titulo}\n  - ${u.contenidos.join("\n  - ")}`).join("\n");
+    const bib = (cat.bibliografia || []).map((b) => `- ${b}`).join("\n");
+    const nivel = NIVELES_IA.find((n) => n.v === Number(nivelIA))?.t || "";
+    const sys = `Sos asistente pedagógico de la USAL para la cátedra de ${m?.nombre || ""} (${cat.docenteNombre}, ${cat.carrera || "varias carreras"}). Redactás consignas de actividades ÚNICAMENTE sobre el programa y la bibliografía dados. Escribí en español rioplatense, tono académico claro. Estructura: consigna (qué debe hacer el estudiante, con extensión sugerida), criterios de evaluación (3-4), modalidad de entrega, y una línea final sobre el uso de IA permitido según "${nivel}". Markdown, sin título general.\n\nPROGRAMA:\n${uds}\n\nBIBLIOGRAFÍA:\n${bib}`;
+    const prompt = `Redactá la consigna para una actividad de tipo "${tipo}"${titulo ? ` titulada "${titulo}"` : ""}, para estudiantes de ${cat.carrera || "la carrera"}.`;
+    try { const r = await callClaude([{ role: "user", content: prompt }], sys); setConsigna(r.text || ""); }
+    catch { setConsigna("Error al generar la consigna. Probá de nuevo."); }
+    finally { setGenLoading(false); }
+  };
+  const buscarCaso = async () => {
+    const cat = catDe(catId); if (!cat || casoLoading || genLoading) return;
+    setCasoLoading(true);
+    try {
+      const res = await fetch("/api/noticias");
+      const data = await res.json();
+      if (data.error || !data.noticias || !data.noticias.length) throw new Error(data.error || "sin noticias");
+      const m = MATERIAS.find((x) => x.id === cat.materiaId);
+      const uds = cat.unidades.map((u) => u.titulo).join("\n");
+      const listado = data.noticias.map((n, i) => `${i + 1}. [${n.medio}] ${n.titulo}${n.resumen ? " — " + n.resumen : ""} (${n.link})`).join("\n");
+      const nivel = NIVELES_IA.find((n) => n.v === Number(nivelIA))?.t || "";
+      const sys = `Sos asistente pedagógico de la USAL para la cátedra de ${m?.nombre || ""} (carrera: ${cat.carrera || "varias"}). Tu tarea: elegir UNA noticia de actualidad pertinente para la materia y convertirla en un caso de análisis para trabajar en clase. Reglas estrictas: resumí la noticia EN TUS PROPIAS PALABRAS en 3-4 líneas (no copies texto del medio), nombrá el medio y al final incluí el enlace a la nota. Conectá explícitamente el caso con una o dos unidades del programa (nombralas). Después redactá la consigna de análisis: 3-4 preguntas guía, extensión sugerida, criterios de evaluación, y una línea final sobre el uso de IA según "${nivel}". Markdown, sin título general.\n\nPROGRAMA (unidades):\n${uds}`;
+      const prompt = `Noticias de hoy:\n${listado}\n\nElegí la más pertinente para ${m?.nombre || "la materia"} en la carrera ${cat.carrera || ""} y armá el caso de análisis.`;
+      const r = await callClaude([{ role: "user", content: prompt }], sys);
+      setTipo("Análisis de caso");
+      setConsigna(r.text || "");
+    } catch (e) { setConsigna("No se pudieron obtener noticias en este momento. Probá de nuevo en unos minutos."); }
+    finally { setCasoLoading(false); }
+  };
+  const publicar = () => {
+    if (!catId || !titulo.trim() || !consigna.trim()) { alert("Completá cátedra, título y consigna."); return; }
+    setActividades((prev) => [...prev, { id: "act-" + Date.now(), catedraId: catId, titulo: titulo.trim(), tipo, fechaEntrega: fecha, nivelIA: Number(nivelIA), consigna }]);
+    setCreando(false); setTitulo(""); setFecha(""); setConsigna("");
+  };
+  const borrar = (id) => setActividades((prev) => prev.filter((a) => a.id !== id));
+  return (
+    <div className="su-page su-rise">
+      <div className="su-section">
+        <div className="su-row" style={{ justifyContent: "space-between" }}>
+          <h3 style={{ margin: 0 }}>Actividades publicadas</h3>
+          <button className="su-btn sm" onClick={() => setCreando((v) => !v)}>{creando ? "Cancelar" : "+ Nueva actividad"}</button>
+        </div>
+        {creando && (
+          <div className="su-actform">
+            <div className="su-divider" />
+            <div className="su-grid2">
+              <div><label className="su-label">Cátedra</label><select className="su-field" value={catId} onChange={(e) => setCatId(e.target.value)}>{catedras.map((c) => { const m = MATERIAS.find((x) => x.id === c.materiaId); return <option key={c.id} value={c.id}>{m?.nombre} · {c.carrera || "General"}</option>; })}</select></div>
+              <div><label className="su-label">Tipo</label><select className="su-field" value={tipo} onChange={(e) => setTipo(e.target.value)}><option>Trabajo práctico</option><option>Cuestionario</option><option>Ensayo</option><option>Análisis de caso</option><option>Exposición oral</option></select></div>
+            </div>
+            <div style={{ marginTop: 10 }}><label className="su-label">Título</label><input className="su-field" value={titulo} placeholder="TP 2 · El silogismo en la argumentación científica" onChange={(e) => setTitulo(e.target.value)} /></div>
+            <div className="su-grid2" style={{ marginTop: 10 }}>
+              <div><label className="su-label">Fecha de entrega</label><input className="su-field" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
+              <div><label className="su-label">Uso de IA permitido</label><select className="su-field" value={nivelIA} onChange={(e) => setNivelIA(e.target.value)}>{NIVELES_IA.map((n) => <option key={n.v} value={n.v}>{n.t}</option>)}</select></div>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <div className="su-row" style={{ justifyContent: "space-between" }}>
+                <label className="su-label" style={{ margin: 0 }}>Consigna</label>
+                <div className="su-row">
+                  <button className="su-btn ghost sm" onClick={buscarCaso} disabled={casoLoading || genLoading}>{casoLoading ? "Buscando noticia…" : "📰 Caso de actualidad"}</button>
+                  <button className="su-btn ghost sm" onClick={generarConsigna} disabled={genLoading || casoLoading}>{genLoading ? "Generando…" : "✺ Generar desde el programa"}</button>
+                </div>
+              </div>
+              <textarea className="su-field" rows={9} value={consigna} placeholder="Escribí la consigna, o generala con IA a partir del programa y la bibliografía de la cátedra y después editala a gusto." onChange={(e) => setConsigna(e.target.value)} style={{ marginTop: 6, resize: "vertical" }} />
+            </div>
+            <button className="su-btn full" style={{ marginTop: 14 }} onClick={publicar}>Publicar actividad</button>
+            <p className="su-mini" style={{ marginTop: 8 }}>“Generar desde el programa” redacta solo con el programa y la bibliografía de la cátedra. “Caso de actualidad” busca los titulares del día (La Nación, Infobae, Google News), elige uno pertinente, lo resume con sus palabras y lo conecta con las unidades, citando la fuente. Revisá y editá antes de publicar: el criterio académico es tuyo.</p>
+          </div>
+        )}
+        <div className="su-divider" />
+        {lista.length === 0 && <p className="su-mini">Todavía no hay actividades. Creá la primera.</p>}
+        {lista.map((a) => { const c = catDe(a.catedraId); const m = c && MATERIAS.find((x) => x.id === c.materiaId);
+          return (
+            <div key={a.id} className="su-actrow">
+              <div>
+                <div className="su-acttags"><span className="su-tag">{a.tipo}</span><span className="su-mini">{m?.nombre} · {c?.carrera || "General"}</span></div>
+                <b>{a.titulo}</b>
+                <div><EstadoEntrega fecha={a.fechaEntrega} /></div>
+              </div>
+              <button className="su-x" onClick={() => borrar(a.id)} title="Eliminar actividad">✕</button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const MODELOS_PED = [
+  { id: "tradicional", t: "Clase expositiva (tradicional)", desc: "exposición ordenada del docente con ejemplos, preguntas de comprobación intercaladas y síntesis final; los estudiantes toman apuntes y participan en momentos pautados" },
+  { id: "invertida", t: "Aula invertida", desc: "los estudiantes estudian el material ANTES de la clase (indicá exactamente qué leer/ver y cómo prepararlo, con consigna previa verificable); el tiempo de clase se dedica a aplicar, discutir, resolver casos y aclarar dudas, no a exponer contenido nuevo" },
+  { id: "abp", t: "ABP · Aprendizaje Basado en Problemas", desc: "se parte de un problema real o verosímil del campo profesional ANTES de la teoría; organizá grupos y seguí los pasos del ABP: análisis del problema, lluvia de ideas, formulación de objetivos de aprendizaje, estudio autónomo y puesta en común; el docente actúa como tutor que guía con preguntas, no como expositor" },
+  { id: "proyectos", t: "Aprendizaje Basado en Proyectos", desc: "se define un proyecto con un producto final concreto; planificá hitos por clase, roles dentro de los equipos, entregas parciales y criterios de evaluación tanto del producto como del proceso" },
+  { id: "casos", t: "Estudio de casos", desc: "se presenta un caso concreto del campo profesional o de la actualidad; incluí la narración breve del caso, preguntas de análisis individuales y grupales, discusión guiada y un cierre conceptual que conecte explícitamente con la teoría del programa" },
+  { id: "socratico", t: "Seminario socrático", desc: "lectura previa obligatoria de un texto de la bibliografía; la clase se organiza como diálogo con preguntas abiertas encadenadas (incluí las preguntas guía en orden), reglas de participación explícitas y el docente como moderador que repregunta sin dar respuestas cerradas" },
+  { id: "gagne", t: "Gagné · 9 eventos de instrucción", desc: "estructurá la clase siguiendo EN ORDEN y NOMBRANDO los nueve eventos de Gagné: 1) captar la atención, 2) informar los objetivos, 3) recuperar saberes previos, 4) presentar el contenido, 5) guiar el aprendizaje, 6) provocar la práctica, 7) retroalimentar, 8) evaluar el desempeño, 9) favorecer la retención y transferencia; asigná minutos a cada evento" },
+  { id: "colaborativo", t: "Aprendizaje colaborativo", desc: "trabajo en grupos pequeños con roles definidos e interdependencia positiva; detallá la dinámica, los tiempos, la producción conjunta esperada y la puesta en común; la evaluación contempla el aporte individual y el grupal" },
+];
+
+function PlanificadorDocente({ catedras }) {
+  const [catId, setCatId] = useState(catedras[0]?.id || "");
+  const [modo, setModo] = useState("materia");
+  const [inicio, setInicio] = useState("");
+  const [fin, setFin] = useState("");
+  const [frecuencia, setFrecuencia] = useState("1");
+  const [unidad, setUnidad] = useState("");
+  const [clasesUnidad, setClasesUnidad] = useState("3");
+  const [tema, setTema] = useState("");
+  const [duracion, setDuracion] = useState("90");
+  const [notas, setNotas] = useState("");
+  const [modeloPed, setModeloPed] = useState("");
+  const [out, setOut] = useState("");
+  const [loading, setLoading] = useState(false);
+  const MODOS = [{ id: "materia", t: "Materia (cuatrimestre)" }, { id: "unidad", t: "Unidad" }, { id: "clase", t: "Clase" }];
+  const cat = catedras.find((c) => c.id === catId);
+  const unidades = cat?.unidades || [];
+  const generar = async () => {
+    if (!cat || loading) return;
+    setLoading(true); setOut("");
+    const m = MATERIAS.find((x) => x.id === cat.materiaId);
+    const uds = cat.unidades.map((u) => `${u.titulo}\n  - ${u.contenidos.join("\n  - ")}`).join("\n");
+    const bib = (cat.bibliografia || []).map((b) => `- ${b}`).join("\n");
+    const sys = `Sos asistente de planificación docente de la USAL para la cátedra de ${m?.nombre || ""} (${cat.docenteNombre}, ${cat.carrera || "varias carreras"}). Planificás ÚNICAMENTE sobre el programa y la bibliografía dados. Español rioplatense, tono académico claro. Markdown prolijo con encabezados; usá listas por clase.\n\nPROGRAMA:\n${uds}\n\nBIBLIOGRAFÍA:\n${bib}`;
+    const mp = MODELOS_PED.find((x) => x.id === modeloPed);
+    const modeloTxt = mp && modo !== "materia" ? ` MODELO PEDAGÓGICO: la planificación debe seguir estrictamente el modelo "${mp.t}": ${mp.desc}. Si este modelo define una estructura propia de momentos, usala en lugar de la genérica.` : "";
+    let prompt = "";
+    if (modo === "materia") {
+      prompt = `Armá la planificación cuatrimestral completa de la materia. Fecha de inicio: ${inicio ? fmtFecha(inicio) : "(a definir)"}. Fecha de finalización: ${fin ? fmtFecha(fin) : "(a definir)"}. Frecuencia: ${frecuencia} clase(s) por semana.${notas ? " Consideraciones del docente: " + notas + "." : ""} Distribuí las unidades del programa clase por clase (con fechas concretas si las hay, salteando ninguna semana salvo que se indique), reservá clases para repaso, parcial(es), recuperatorio y cierre. Para cada clase: número y fecha, unidad, tema, bibliografía sugerida. Cerrá con observaciones para el docente.`;
+    } else if (modo === "unidad") {
+      prompt = `Armá la planificación de la unidad "${unidad || unidades[0]?.titulo || ""}" desarrollada en ${clasesUnidad} clase(s). Para cada clase: objetivos específicos, contenidos del programa a trabajar, bibliografía puntual, actividades sugeridas (incluí al menos una con uso pedagógico de IA, indicando el nivel de uso recomendado) y forma de seguimiento o evaluación.${modeloTxt}${notas ? " Consideraciones del docente: " + notas + "." : ""}`;
+    } else {
+      prompt = `Armá el plan de UNA clase de ${duracion} minutos${tema ? ` sobre: "${tema}"` : " sobre un tema central"}${unidad ? ` de la unidad "${unidad}"` : ""}. Estructurá: objetivos de la clase, momentos con minutos asignados (inicio/motivación, desarrollo, cierre), recursos, actividades de los estudiantes, bibliografía y una propuesta de evaluación formativa.${modeloTxt}${notas ? " Consideraciones del docente: " + notas + "." : ""}`;
+    }
+    try { const r = await callClaude([{ role: "user", content: prompt }], sys); setOut(r.text || ""); }
+    catch { setOut("Error al generar. Probá de nuevo."); }
+    finally { setLoading(false); }
+  };
+  return (
+    <div className="su-page su-rise">
+      <div className="su-section">
+        <span className="su-tag">Planificación</span>
+        <h3>Planificar con IA desde el programa</h3>
+        <p style={{ color: "var(--gris)", fontSize: 14.5, marginTop: -4, marginBottom: 14 }}>Elegí el alcance: la materia completa del cuatrimestre, una unidad o una clase puntual. La IA arma la propuesta solo con el programa y la bibliografía de tu cátedra; después la ajustás a tu criterio.</p>
+        <div className="su-grid2">
+          <div><label className="su-label">Cátedra</label><select className="su-field" value={catId} onChange={(e) => { setCatId(e.target.value); setUnidad(""); }}>{catedras.map((c) => { const mm = MATERIAS.find((x) => x.id === c.materiaId); return <option key={c.id} value={c.id}>{mm?.nombre} · {c.carrera || "General"}</option>; })}</select></div>
+          <div><label className="su-label">Alcance</label><div className="su-seg">{MODOS.map((x) => <button key={x.id} className={modo === x.id ? "on" : ""} onClick={() => setModo(x.id)}>{x.t}</button>)}</div></div>
+        </div>
+        {modo === "materia" && (
+          <div className="su-grid2" style={{ marginTop: 10 }}>
+            <div><label className="su-label">Inicio del cuatrimestre</label><input className="su-field" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} /></div>
+            <div><label className="su-label">Fin del cuatrimestre</label><input className="su-field" type="date" value={fin} onChange={(e) => setFin(e.target.value)} /></div>
+          </div>
+        )}
+        {modo === "materia" && (
+          <div style={{ marginTop: 10 }}><label className="su-label">Clases por semana</label><select className="su-field" value={frecuencia} onChange={(e) => setFrecuencia(e.target.value)}><option>1</option><option>2</option><option>3</option></select></div>
+        )}
+        {modo === "unidad" && (
+          <div className="su-grid2" style={{ marginTop: 10 }}>
+            <div><label className="su-label">Unidad</label><select className="su-field" value={unidad} onChange={(e) => setUnidad(e.target.value)}>{unidades.map((u) => <option key={u.titulo} value={u.titulo}>{u.titulo}</option>)}</select></div>
+            <div><label className="su-label">Cantidad de clases</label><select className="su-field" value={clasesUnidad} onChange={(e) => setClasesUnidad(e.target.value)}><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+          </div>
+        )}
+        {modo === "clase" && (
+          <div className="su-grid2" style={{ marginTop: 10 }}>
+            <div><label className="su-label">Unidad (opcional)</label><select className="su-field" value={unidad} onChange={(e) => setUnidad(e.target.value)}><option value="">—</option>{unidades.map((u) => <option key={u.titulo} value={u.titulo}>{u.titulo}</option>)}</select></div>
+            <div><label className="su-label">Duración (minutos)</label><select className="su-field" value={duracion} onChange={(e) => setDuracion(e.target.value)}><option>60</option><option>90</option><option>120</option><option>180</option></select></div>
+          </div>
+        )}
+        {modo === "clase" && (
+          <div style={{ marginTop: 10 }}><label className="su-label">Tema de la clase</label><input className="su-field" value={tema} placeholder="Ej.: El silogismo categórico: estructura, figuras y reglas" onChange={(e) => setTema(e.target.value)} /></div>
+        )}
+        {modo !== "materia" && (
+          <div style={{ marginTop: 10 }}><label className="su-label">Modelo pedagógico</label><select className="su-field" value={modeloPed} onChange={(e) => setModeloPed(e.target.value)}><option value="">A criterio del docente (mixto)</option>{MODELOS_PED.map((x) => <option key={x.id} value={x.id}>{x.t}</option>)}</select>
+          {modeloPed && <p className="su-mini" style={{ marginTop: 6 }}>{MODELOS_PED.find((x) => x.id === modeloPed)?.desc}</p>}</div>
+        )}
+        <div style={{ marginTop: 10 }}><label className="su-label">Consideraciones (opcional)</label><input className="su-field" value={notas} placeholder="Feriados, parcial en semana 8, grupo numeroso, etc." onChange={(e) => setNotas(e.target.value)} /></div>
+        <button className="su-btn full" style={{ marginTop: 16 }} onClick={generar} disabled={loading}>{loading ? "Generando planificación…" : "Generar planificación"}</button>
+      </div>
+      {out && <div className="su-section su-rise"><div className="su-row" style={{ justifyContent: "space-between" }}><h3 style={{ margin: 0 }}>Propuesta de planificación</h3><button className="su-btn ghost sm" onClick={generar} disabled={loading}>↻ Regenerar</button></div><div className="su-divider" /><div className="su-planout"><MD text={out} /></div></div>}
+    </div>
+  );
+}
+
 /* --------------------- PANEL (docente / autoridad) ---------------------- */
-function Panel({ session, catedras, setCatedras, onLogout, onSwitchRole }) {
+function Panel({ session, catedras, setCatedras, actividades, setActividades, onLogout, onSwitchRole }) {
   const esAutoridad = session.role === "autoridad";
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState(esAutoridad ? "general" : "mis");
   const [editing, setEditing] = useState(null);
   const mias = catedras.filter((c) => c.docenteEmail === session.email);
-  const navs = esAutoridad ? [{ id: "general", ic: "▦", t: "Panel general" }, { id: "todas", ic: "❧", t: "Cátedras" }] : [{ id: "mis", ic: "❧", t: "Mis cátedras" }];
-  const titulo = { general: "Panel general", todas: "Todas las cátedras", mis: "Mis cátedras" }[tab];
+  const navs = esAutoridad ? [{ id: "general", ic: "▦", t: "Panel general" }, { id: "todas", ic: "❧", t: "Cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }] : [{ id: "mis", ic: "❧", t: "Mis cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }];
+  const titulo = { general: "Panel general", todas: "Todas las cátedras", mis: "Mis cátedras", acts: "Actividades", planif: "Planificación de cátedra" }[tab];
   return (
     <div className="su-shell">
       <aside className={`su-aside ${collapsed ? "collapsed" : ""}`}>
@@ -678,6 +961,8 @@ function Panel({ session, catedras, setCatedras, onLogout, onSwitchRole }) {
         {navs.length > 1 && <div className="su-mobnav">{navs.map((x) => <button key={x.id} className={tab === x.id ? "on" : ""} onClick={() => { setTab(x.id); setEditing(null); }}>{x.t}</button>)}</div>}
         <div className="su-content">
           {editing ? <CatedraForm session={session} catedras={catedras} setCatedras={setCatedras} editingId={editing} onClose={() => setEditing(null)} />
+            : tab === "acts" ? <ActividadesDocente catedras={esAutoridad ? catedras : mias} actividades={actividades} setActividades={setActividades} />
+            : tab === "planif" ? <PlanificadorDocente catedras={esAutoridad ? catedras : mias} />
             : tab === "general" ? <PanelGeneral catedras={catedras} onNew={() => setEditing("nueva")} onEdit={setEditing} />
               : <ListaCatedras catedras={tab === "todas" ? catedras : mias} titulo={tab === "todas" ? "Cátedras de las 5 materias" : "Cátedras a tu cargo"} onNew={() => setEditing("nueva")} onEdit={setEditing} vacio={tab === "mis" ? "Todavía no tenés cátedras. Creá la primera." : ""} />}
         </div>
