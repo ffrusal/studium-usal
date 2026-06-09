@@ -347,6 +347,14 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 .su-actrow:last-child{border-bottom:none;}
 .su-actrow b{display:block;color:var(--verde-osc);margin:3px 0;}
 .su-actform{margin-top:6px;}
+.su-temas{display:flex;flex-direction:column;gap:10px;margin-top:6px;max-height:260px;overflow-y:auto;border:1px solid var(--linea);border-radius:12px;padding:12px;background:#fff;}
+.su-temaud-tit{font-size:12.5px;font-weight:700;color:var(--verde-osc);display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+.su-temaud-all{border:none;background:rgba(0,131,87,.08);color:var(--verde);font-size:10.5px;font-weight:600;border-radius:14px;padding:2px 9px;cursor:pointer;}
+.su-tema{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--tinta);padding:4px 6px;border-radius:8px;cursor:pointer;line-height:1.4;}
+.su-tema:hover{background:rgba(0,131,87,.04);}
+.su-tema.on{background:rgba(0,131,87,.08);}
+.su-tema input{margin-top:3px;flex:0 0 auto;accent-color:var(--verde);}
+.su-temachip{font-size:10.5px;background:rgba(0,131,87,.07);color:var(--verde-osc);border:1px solid rgba(0,131,87,.14);border-radius:14px;padding:1px 8px;margin:2px 4px 0 0;display:inline-block;}
 .su-asidetop{display:flex;align-items:center;gap:11px;margin-bottom:14px;}
 .su-asidetop .su-brand{margin-bottom:0;}
 .su-toggle{flex:0 0 auto;width:34px;height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.10);color:#fff;cursor:pointer;font-size:16px;line-height:1;display:grid;place-items:center;transition:.15s;}
@@ -427,15 +435,34 @@ function MD({ text }) {
 }
 
 /* ============================== APP ===================================== */
+// --- Routing por hash + persistencia de sesión (demo) ---
+const LS_KEY = "studium_sesion_v1";
+function leerHash() {
+  const h = (window.location.hash || "").replace(/^#\/?/, "");
+  return h.split("/").filter(Boolean); // ej: ["docente","actividades"]
+}
+function escribirHash(ruta) {
+  const nueva = "#/" + ruta.replace(/^\/+/, "");
+  if (window.location.hash !== nueva) window.location.hash = nueva;
+}
+
 export default function StudiumUSAL() {
-  const [stage, setStage] = useState("login");
-  const [session, setSession] = useState(null);
+  const guardada = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch { return null; } })();
+  const [stage, setStage] = useState(guardada?.stage || "login");
+  const [session, setSession] = useState(guardada?.session || null);
   const [catedras, setCatedras] = useState(CATEDRAS_SEED);
-  const [ctx, setCtx] = useState(null);
+  const [ctx, setCtx] = useState(guardada?.ctx || null);
   const [chats, setChats] = useState({}); // conversaciones por cátedra: { [catedraId]: msgs[] }
   const [actividades, setActividades] = useState(ACTIVIDADES_SEED);
   useEffect(() => { if (!document.getElementById("su-style")) { const s = document.createElement("style"); s.id = "su-style"; s.textContent = CSS; document.head.appendChild(s); } }, []);
-  const logout = () => { setSession(null); setCtx(null); setChats({}); setStage("login"); };
+  // Persisto sesión/vista para sobrevivir al refresco
+  useEffect(() => {
+    try {
+      if (session) localStorage.setItem(LS_KEY, JSON.stringify({ stage, session, ctx }));
+      else localStorage.removeItem(LS_KEY);
+    } catch {}
+  }, [stage, session, ctx]);
+  const logout = () => { setSession(null); setCtx(null); setChats({}); setStage("login"); try { localStorage.removeItem(LS_KEY); } catch {} escribirHash("login"); };
   const switchRole = (role) => {
     setSession((s) => ({ ...s, role }));
     setStage(role === "estudiante" ? (ctx ? "app" : "onboarding") : "panel");
@@ -515,9 +542,13 @@ function Onboarding({ catedras, onDone, onBack }) {
 
 /* --------------------------- APP (estudiante) --------------------------- */
 function AppShell({ session, ctx, chats, setChats, actividades, onChange, onLogout, onSwitchRole }) {
-  const [tab, setTab] = useState("asistente");
-  const [collapsed, setCollapsed] = useState(false);
   const { facultad, carrera, materia, catedra } = ctx;
+  const tabsValidos = ["asistente", "actividades", "programa", "biblio", "autoeval", "plan"];
+  const hashTab = (() => { const p = leerHash(); return p[0] === "catedra" && p[1] === catedra.id && tabsValidos.includes(p[2]) ? p[2] : null; })();
+  const [tab, setTabRaw] = useState(hashTab || "asistente");
+  const setTab = (t) => { setTabRaw(t); escribirHash(`catedra/${catedra.id}/${t}`); };
+  useEffect(() => { escribirHash(`catedra/${catedra.id}/${tab}`); }, [catedra.id]);
+  const [collapsed, setCollapsed] = useState(false);
   const nActs = (actividades || []).filter((a) => a.catedraId === catedra.id).length;
   const tabs = [{ id: "asistente", ic: "✺", t: "Asistente" }, { id: "actividades", ic: "✉", t: nActs ? `Actividades (${nActs})` : "Actividades" }, { id: "programa", ic: "❧", t: "Programa" }, { id: "biblio", ic: "❦", t: "Bibliografía" }, { id: "autoeval", ic: "✎", t: "Autoevaluación" }, { id: "plan", ic: "◷", t: "Planificador" }];
   const titulo = { asistente: "Asistente de estudio", actividades: "Actividades", programa: "Programa de la cátedra", biblio: "Bibliografía", autoeval: "Autoevaluación", plan: "Planificador" }[tab];
@@ -725,6 +756,7 @@ function ActividadesAlumno({ actividades, catedra }) {
               <div className="su-acttags"><span className="su-tag">{a.tipo}</span><span className="su-iachip">{NIVELES_IA.find((n) => n.v === a.nivelIA)?.t || "IA: a definir"}</span></div>
               <h3 style={{ margin: "6px 0 4px" }}>{a.titulo}</h3>
               <EstadoEntrega fecha={a.fechaEntrega} />
+              {a.temas && a.temas.length > 0 && <div style={{ marginTop: 6 }}>{a.temas.map((t) => <span key={t} className="su-temachip">{t}</span>)}</div>}
             </div>
             <span className="su-actchevron">{abierta === a.id ? "▴" : "▾"}</span>
           </div>
@@ -748,6 +780,7 @@ function ActividadesDocente({ catedras, actividades, setActividades }) {
   const [fecha, setFecha] = useState("");
   const [nivelIA, setNivelIA] = useState(2);
   const [consigna, setConsigna] = useState("");
+  const [temasSel, setTemasSel] = useState([]);
   const [genLoading, setGenLoading] = useState(false);
   const [casoLoading, setCasoLoading] = useState(false);
   const idsMias = new Set(catedras.map((c) => c.id));
@@ -761,8 +794,9 @@ function ActividadesDocente({ catedras, actividades, setActividades }) {
     const uds = cat.unidades.map((u) => `${u.titulo}\n  - ${u.contenidos.join("\n  - ")}`).join("\n");
     const bib = (cat.bibliografia || []).map((b) => `- ${b}`).join("\n");
     const nivel = NIVELES_IA.find((n) => n.v === Number(nivelIA))?.t || "";
+    const foco = temasSel.length ? ` La actividad debe centrarse EXCLUSIVAMENTE en estos temas del programa: ${temasSel.join("; ")}.` : "";
     const sys = `Sos asistente pedagógico de la USAL para la cátedra de ${m?.nombre || ""} (${cat.docenteNombre}, ${cat.carrera || "varias carreras"}). Redactás consignas de actividades ÚNICAMENTE sobre el programa y la bibliografía dados. Escribí en español rioplatense, tono académico claro. Estructura: consigna (qué debe hacer el estudiante, con extensión sugerida), criterios de evaluación (3-4), modalidad de entrega, y una línea final sobre el uso de IA permitido según "${nivel}". Markdown, sin título general.\n\nPROGRAMA:\n${uds}\n\nBIBLIOGRAFÍA:\n${bib}`;
-    const prompt = `Redactá la consigna para una actividad de tipo "${tipo}"${titulo ? ` titulada "${titulo}"` : ""}, para estudiantes de ${cat.carrera || "la carrera"}.`;
+    const prompt = `Redactá la consigna para una actividad de tipo "${tipo}"${titulo ? ` titulada "${titulo}"` : ""}, para estudiantes de ${cat.carrera || "la carrera"}.${foco}`;
     try { const r = await callClaude([{ role: "user", content: prompt }], sys); setConsigna(r.text || ""); }
     catch { setConsigna("Error al generar la consigna. Probá de nuevo."); }
     finally { setGenLoading(false); }
@@ -788,8 +822,8 @@ function ActividadesDocente({ catedras, actividades, setActividades }) {
   };
   const publicar = () => {
     if (!catId || !titulo.trim() || !consigna.trim()) { alert("Completá cátedra, título y consigna."); return; }
-    setActividades((prev) => [...prev, { id: "act-" + Date.now(), catedraId: catId, titulo: titulo.trim(), tipo, fechaEntrega: fecha, nivelIA: Number(nivelIA), consigna }]);
-    setCreando(false); setTitulo(""); setFecha(""); setConsigna("");
+    setActividades((prev) => [...prev, { id: "act-" + Date.now(), catedraId: catId, titulo: titulo.trim(), tipo, fechaEntrega: fecha, nivelIA: Number(nivelIA), consigna, temas: temasSel }]);
+    setCreando(false); setTitulo(""); setFecha(""); setConsigna(""); setTemasSel([]);
   };
   const borrar = (id) => setActividades((prev) => prev.filter((a) => a.id !== id));
   return (
@@ -803,10 +837,29 @@ function ActividadesDocente({ catedras, actividades, setActividades }) {
           <div className="su-actform">
             <div className="su-divider" />
             <div className="su-grid2">
-              <div><label className="su-label">Cátedra</label><select className="su-field" value={catId} onChange={(e) => setCatId(e.target.value)}>{catedras.map((c) => { const m = MATERIAS.find((x) => x.id === c.materiaId); return <option key={c.id} value={c.id}>{m?.nombre} · {c.carrera || "General"}</option>; })}</select></div>
+              <div><label className="su-label">Cátedra</label><select className="su-field" value={catId} onChange={(e) => { setCatId(e.target.value); setTemasSel([]); }}>{catedras.map((c) => { const m = MATERIAS.find((x) => x.id === c.materiaId); return <option key={c.id} value={c.id}>{m?.nombre} · {c.carrera || "General"}</option>; })}</select></div>
               <div><label className="su-label">Tipo</label><select className="su-field" value={tipo} onChange={(e) => setTipo(e.target.value)}><option>Trabajo práctico</option><option>Cuestionario</option><option>Ensayo</option><option>Análisis de caso</option><option>Exposición oral</option></select></div>
             </div>
             <div style={{ marginTop: 10 }}><label className="su-label">Título</label><input className="su-field" value={titulo} placeholder="TP 2 · El silogismo en la argumentación científica" onChange={(e) => setTitulo(e.target.value)} /></div>
+            <div style={{ marginTop: 10 }}>
+              <label className="su-label">Temas del programa {temasSel.length > 0 && <span className="su-mini">· {temasSel.length} seleccionado{temasSel.length === 1 ? "" : "s"}</span>}</label>
+              <div className="su-temas">
+                {(catDe(catId)?.unidades || []).map((u) => (
+                  <div key={u.titulo} className="su-temaud">
+                    <div className="su-temaud-tit">{u.titulo}
+                      <button type="button" className="su-temaud-all" onClick={() => { const todos = u.contenidos; const faltan = todos.some((t) => !temasSel.includes(t)); setTemasSel((prev) => faltan ? Array.from(new Set([...prev, ...todos])) : prev.filter((t) => !todos.includes(t))); }}>{u.contenidos.every((t) => temasSel.includes(t)) ? "Quitar unidad" : "Toda la unidad"}</button>
+                    </div>
+                    {u.contenidos.map((t) => (
+                      <label key={t} className={`su-tema ${temasSel.includes(t) ? "on" : ""}`}>
+                        <input type="checkbox" checked={temasSel.includes(t)} onChange={() => setTemasSel((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t])} />
+                        <span>{t}</span>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <p className="su-mini" style={{ marginTop: 6 }}>Opcional: elegí uno o varios temas para que la actividad se enfoque solo en ellos. Si no seleccionás ninguno, la IA puede usar todo el programa.</p>
+            </div>
             <div className="su-grid2" style={{ marginTop: 10 }}>
               <div><label className="su-label">Fecha de entrega</label><input className="su-field" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
               <div><label className="su-label">Uso de IA permitido</label><select className="su-field" value={nivelIA} onChange={(e) => setNivelIA(e.target.value)}>{NIVELES_IA.map((n) => <option key={n.v} value={n.v}>{n.t}</option>)}</select></div>
@@ -833,6 +886,7 @@ function ActividadesDocente({ catedras, actividades, setActividades }) {
               <div>
                 <div className="su-acttags"><span className="su-tag">{a.tipo}</span><span className="su-mini">{m?.nombre} · {c?.carrera || "General"}</span></div>
                 <b>{a.titulo}</b>
+                {a.temas && a.temas.length > 0 && <div>{a.temas.slice(0, 4).map((t) => <span key={t} className="su-temachip">{t}</span>)}{a.temas.length > 4 && <span className="su-temachip">+{a.temas.length - 4}</span>}</div>}
                 <div><EstadoEntrega fecha={a.fechaEntrega} /></div>
               </div>
               <button className="su-x" onClick={() => borrar(a.id)} title="Eliminar actividad">✕</button>
@@ -942,8 +996,13 @@ function PlanificadorDocente({ catedras }) {
 /* --------------------- PANEL (docente / autoridad) ---------------------- */
 function Panel({ session, catedras, setCatedras, actividades, setActividades, onLogout, onSwitchRole }) {
   const esAutoridad = session.role === "autoridad";
+  const rolSeg = esAutoridad ? "autoridad" : "docente";
+  const validos = esAutoridad ? ["general", "todas", "acts", "planif"] : ["mis", "acts", "planif"];
+  const hashTab = (() => { const p = leerHash(); return p[0] === rolSeg && validos.includes(p[1]) ? p[1] : null; })();
   const [collapsed, setCollapsed] = useState(false);
-  const [tab, setTab] = useState(esAutoridad ? "general" : "mis");
+  const [tab, setTabRaw] = useState(hashTab || (esAutoridad ? "general" : "mis"));
+  const setTab = (t) => { setTabRaw(t); escribirHash(`${rolSeg}/${t}`); };
+  useEffect(() => { escribirHash(`${rolSeg}/${tab}`); }, []);
   const [editing, setEditing] = useState(null);
   const mias = catedras.filter((c) => c.docenteEmail === session.email);
   const navs = esAutoridad ? [{ id: "general", ic: "▦", t: "Panel general" }, { id: "todas", ic: "❧", t: "Cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }] : [{ id: "mis", ic: "❧", t: "Mis cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }];
