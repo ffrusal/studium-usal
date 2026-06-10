@@ -350,6 +350,16 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 .su-actform{margin-top:6px;}
 .su-demolink{display:block;width:100%;text-align:center;background:none;border:none;color:var(--gris);font-size:13px;margin-top:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-family:inherit;}
 .su-demolink:hover{color:var(--verde-osc);}
+.su-conn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:100vh;width:100%;}
+.su-connlogo{width:118px;animation:suPulse 1.7s ease-in-out infinite;filter:drop-shadow(0 8px 22px rgba(0,0,0,.35));}
+.su-connfb{width:96px;height:96px;border-radius:22px;background:#fff;color:var(--verde-osc);font-weight:800;font-size:22px;display:flex;align-items:center;justify-content:center;animation:suPulse 1.7s ease-in-out infinite;}
+.su-conntxt{color:#fff;font-size:16.5px;font-weight:600;letter-spacing:.01em;text-shadow:0 1px 8px rgba(0,0,0,.25);}
+.su-connsub{color:rgba(255,255,255,.75);font-size:12px;letter-spacing:.12em;text-transform:uppercase;}
+.su-conndots i{display:inline-block;font-style:normal;animation:suDot 1.2s infinite;}
+.su-conndots i:nth-child(2){animation-delay:.2s;}
+.su-conndots i:nth-child(3){animation-delay:.4s;}
+@keyframes suPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+@keyframes suDot{0%,60%,100%{opacity:.25;}30%{opacity:1;}}
 .su-statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:6px;}
 .su-stat{background:#fff;border:1px solid var(--linea);border-radius:12px;padding:14px 16px;text-align:center;}
 .su-stat b{display:block;font-size:26px;color:var(--verde-osc);}
@@ -448,6 +458,19 @@ function leerHash() {
   const h = (window.location.hash || "").replace(/^#\/?/, "");
   return h.split("/").filter(Boolean); // ej: ["docente","actividades"]
 }
+function haySesionSupabase() {
+  try {
+    // Volviendo del redirect de Google (token o código en la URL)
+    if (/access_token=|[?&#]code=/.test(window.location.hash + window.location.search)) return true;
+    // Sesión de Supabase ya guardada en este navegador
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("sb-") && k.includes("auth-token")) return true;
+    }
+  } catch {}
+  return false;
+}
+
 function escribirHash(ruta) {
   const nueva = "#/" + ruta.replace(/^\/+/, "");
   if (window.location.hash !== nueva) window.location.hash = nueva;
@@ -455,7 +478,7 @@ function escribirHash(ruta) {
 
 export default function StudiumUSAL() {
   const guardada = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch { return null; } })();
-  const [stage, setStage] = useState(guardada?.stage || "login");
+  const [stage, setStage] = useState(guardada?.stage || (haySesionSupabase() ? "conectando" : "login"));
   const [session, setSession] = useState(guardada?.session || null);
   const [catedras, setCatedras] = useState(CATEDRAS_SEED);
   const [ctx, setCtx] = useState(guardada?.ctx || null);
@@ -483,11 +506,11 @@ export default function StudiumUSAL() {
           const r = await fetch("/api/perfil", { headers: { Authorization: `Bearer ${tok}` } });
           const p = await r.json();
           if (!activo) return;
-          if (p.error) { entrado = false; console.warn("perfil:", p.error); return; }
+          if (p.error) { entrado = false; console.warn("perfil:", p.error); setStage((x) => (x === "conectando" ? "login" : x)); return; }
           const ses = { email: p.email, nombre: p.nombre, role: p.rol, rolReal: p.rol, real: true };
           setSession(ses);
           setStage(p.rol === "estudiante" ? "onboarding" : "panel");
-        } catch { entrado = false; }
+        } catch { entrado = false; setStage((x) => (x === "conectando" ? "login" : x)); }
       };
       // Me suscribo ANTES de consultar, así no se pierde el evento del redirect
       const { data: sub } = supa.auth.onAuthStateChange((ev, nueva) => {
@@ -495,9 +518,13 @@ export default function StudiumUSAL() {
       });
       const { data } = await supa.auth.getSession();
       if (data?.session?.access_token) entrar(data.session.access_token);
+      else if (!/access_token=|[?&#]code=/.test(window.location.hash + window.location.search))
+        setStage((x) => (x === "conectando" ? "login" : x)); // había rastro pero no sesión válida
       return () => sub?.subscription?.unsubscribe?.();
     })();
-    return () => { activo = false; };
+    // Red de seguridad: si en 9s no se resolvió, vuelvo al login
+    const t = setTimeout(() => { if (activo) setStage((x) => (x === "conectando" ? "login" : x)); }, 9000);
+    return () => { activo = false; clearTimeout(t); };
   }, []);
   const logout = async () => { setSession(null); setCtx(null); setChats({}); setStage("login"); try { localStorage.removeItem(LS_KEY); } catch {} try { const supa = await getSupa(); await supa?.auth?.signOut(); } catch {} escribirHash("login"); };
   const switchRole = (role) => {
@@ -507,6 +534,7 @@ export default function StudiumUSAL() {
   };
   return (
     <div className="su-root">
+      {stage === "conectando" && <Conectando />}
       {stage === "login" && <Login onDone={(s) => { setSession(s); setStage(s.role === "estudiante" ? "onboarding" : "panel"); }} />}
       {stage === "onboarding" && <Onboarding catedras={catedras} onDone={(c) => { setCtx(c); setStage("app"); }} onBack={ctx ? () => setStage("app") : logout} />}
       {stage === "app" && ctx && <AppShell session={session} ctx={ctx} chats={chats} setChats={setChats} actividades={actividades} onChange={() => setStage("onboarding")} onLogout={logout} onSwitchRole={switchRole} />}
@@ -516,6 +544,19 @@ export default function StudiumUSAL() {
 }
 
 /* ------------------------------ LOGIN ----------------------------------- */
+function Conectando() {
+  const [logoOk, setLogoOk] = useState(true);
+  return (
+    <div className="su-login">
+      <div className="su-conn su-rise">
+        {logoOk ? <img className="su-connlogo" src={USAL_LOGO} alt="USAL" onError={() => setLogoOk(false)} /> : <div className="su-connfb">USAL</div>}
+        <div className="su-conntxt">Conectando con tu cuenta USAL<span className="su-conndots"><i>.</i><i>.</i><i>.</i></span></div>
+        <div className="su-connsub">Studium · Vicerrectorado de Formación</div>
+      </div>
+    </div>
+  );
+}
+
 function Login({ onDone }) {
   const [email, setEmail] = useState(""); const [role, setRole] = useState("estudiante"); const [err, setErr] = useState(""); const [logoOk, setLogoOk] = useState(true);
   const [demo, setDemo] = useState(false);
