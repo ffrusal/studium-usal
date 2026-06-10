@@ -133,7 +133,7 @@ async function embed(textos, env) {
     },
     body: JSON.stringify({
       input: textos,
-      model: env.EMBED_MODEL || "nvidia/llama-nemotron-embed-vl-1b-v2",
+      model: env.EMBED_MODEL || "qwen/qwen3-embedding-8b",
       encoding_format: "float",
     }),
   });

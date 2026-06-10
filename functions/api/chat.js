@@ -13,7 +13,7 @@
  * Variables / secrets en Cloudflare Pages:
  *   OPENROUTER_API_KEY      (obligatorio; sirve para embeddings Y para la respuesta)
  *   OPENROUTER_MODEL        (opcional, default anthropic/claude-3.5-sonnet)
- *   EMBED_MODEL             (opcional, default nvidia/llama-nemotron-embed-vl-1b-v2)
+ *   EMBED_MODEL             (opcional, default qwen/qwen3-embedding-8b)
  *   EMBED_DIM               (opcional, default 2048)
  *   SUPABASE_URL            (obligatorio)
  *   SUPABASE_SERVICE_KEY    (obligatorio; vive solo en el server)
@@ -28,7 +28,7 @@ export async function onRequestPost({ request, env }) {
     for (const k of need) if (!env[k]) return json({ error: `Falta ${k} en el entorno.` }, 500);
 
     const model     = env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
-    const embedModel= env.EMBED_MODEL || "nvidia/llama-nemotron-embed-vl-1b-v2";
+    const embedModel= env.EMBED_MODEL || "qwen/qwen3-embedding-8b";
     const embedDim  = parseInt(env.EMBED_DIM || "2048", 10);
     const matchCount= parseInt(env.RAG_MATCH_COUNT || "6", 10);
     const minSim    = parseFloat(env.RAG_MIN_SIM || "0.15");

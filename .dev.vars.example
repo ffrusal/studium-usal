@@ -5,7 +5,7 @@
 # --- OpenRouter: sirve para la respuesta (LLM) Y para los embeddings del RAG ---
 OPENROUTER_API_KEY=sk-or-tu-clave-aca
 OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
-EMBED_MODEL=nvidia/llama-nemotron-embed-vl-1b-v2
+EMBED_MODEL=qwen/qwen3-embedding-8b
 EMBED_DIM=2048
 
 # --- RAG: vector store (Supabase) ---
