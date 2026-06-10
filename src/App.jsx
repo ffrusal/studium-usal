@@ -472,24 +472,29 @@ export default function StudiumUSAL() {
   // Sesión institucional real (Google OAuth): al volver del redirect o si hay sesión vigente
   useEffect(() => {
     let activo = true;
+    let entrado = false;
     (async () => {
       const supa = await getSupa();
       if (!supa) return;
       const entrar = async (tok) => {
+        if (entrado) return;
+        entrado = true;
         try {
           const r = await fetch("/api/perfil", { headers: { Authorization: `Bearer ${tok}` } });
           const p = await r.json();
-          if (!activo || p.error) return;
+          if (!activo) return;
+          if (p.error) { entrado = false; console.warn("perfil:", p.error); return; }
           const ses = { email: p.email, nombre: p.nombre, role: p.rol, rolReal: p.rol, real: true };
           setSession(ses);
           setStage(p.rol === "estudiante" ? "onboarding" : "panel");
-        } catch {}
+        } catch { entrado = false; }
       };
-      const { data } = await supa.auth.getSession();
-      if (data?.session?.access_token && !session) entrar(data.session.access_token);
+      // Me suscribo ANTES de consultar, así no se pierde el evento del redirect
       const { data: sub } = supa.auth.onAuthStateChange((ev, nueva) => {
-        if (ev === "SIGNED_IN" && nueva?.access_token) entrar(nueva.access_token);
+        if (nueva?.access_token) entrar(nueva.access_token);
       });
+      const { data } = await supa.auth.getSession();
+      if (data?.session?.access_token) entrar(data.session.access_token);
       return () => sub?.subscription?.unsubscribe?.();
     })();
     return () => { activo = false; };
