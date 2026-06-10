@@ -27,11 +27,15 @@ export async function onRequestPost({ request, env }) {
     const need = ["OPENROUTER_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_KEY"];
     for (const k of need) if (!env[k]) return json({ error: `Falta ${k} en el entorno.` }, 500);
 
-    const model     = env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
-    const embedModel= env.EMBED_MODEL || "qwen/qwen3-embedding-8b";
-    const embedDim  = parseInt(env.EMBED_DIM || "2048", 10);
-    const matchCount= parseInt(env.RAG_MATCH_COUNT || "6", 10);
-    const minSim    = parseFloat(env.RAG_MIN_SIM || "0.15");
+    const cfg = await leerConfig(env); // la tabla config (panel admin) pisa al entorno
+    const modelBase  = cfg.OPENROUTER_MODEL || env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
+    // Si la llamada no es del asistente de una cátedra (actividades/planificador),
+    // se puede usar un modelo distinto configurado en el panel (MODEL_ACTIVIDADES).
+    const model      = catedraId ? modelBase : (cfg.MODEL_ACTIVIDADES || env.MODEL_ACTIVIDADES || modelBase);
+    const embedModel= cfg.EMBED_MODEL || env.EMBED_MODEL || "qwen/qwen3-embedding-8b";
+    const embedDim  = parseInt(cfg.EMBED_DIM || env.EMBED_DIM || "2048", 10);
+    const matchCount= parseInt(cfg.RAG_MATCH_COUNT || env.RAG_MATCH_COUNT || "6", 10);
+    const minSim    = parseFloat(cfg.RAG_MIN_SIM || env.RAG_MIN_SIM || "0.15");
 
     // última pregunta del usuario
     const userMsgs = (messages || []).filter(m => m.role === "user");
@@ -76,6 +80,7 @@ export async function onRequestPost({ request, env }) {
     }
     const data = await r.json();
     const text = data?.choices?.[0]?.message?.content ?? "";
+    registrarEvento(env, "consulta", catedraId); // analíticas (no bloquea la respuesta)
     return json({ text, fuentes });
   } catch (e) {
     return json({ error: String(e) }, 500);
@@ -139,6 +144,34 @@ function buildSystem(baseSystem, contexto) {
       : "(No se recuperaron fragmentos relevantes para esta consulta.)",
   ];
   return reglas.join("\n");
+}
+
+// ---- configuración dinámica (tabla config; tolera que no exista) ----
+async function leerConfig(env) {
+  try {
+    const r = await fetch(`${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/config?select=clave,valor`, {
+      headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
+    });
+    if (!r.ok) return {};
+    const filas = await r.json();
+    const out = {};
+    for (const f of filas) if (f.valor !== "") out[f.clave] = f.valor;
+    return out;
+  } catch { return {}; }
+}
+
+// ---- evento de uso (fire-and-forget; tolera que la tabla no exista) ----
+function registrarEvento(env, tipo, catedra_id) {
+  try {
+    fetch(`${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/eventos`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        "Content-Type": "application/json", Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ tipo, catedra_id: catedra_id || null }),
+    }).catch(() => {});
+  } catch {}
 }
 
 function json(obj, status = 200) {

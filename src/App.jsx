@@ -350,6 +350,10 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 .su-actform{margin-top:6px;}
 .su-demolink{display:block;width:100%;text-align:center;background:none;border:none;color:var(--gris);font-size:13px;margin-top:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-family:inherit;}
 .su-demolink:hover{color:var(--verde-osc);}
+.su-statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:6px;}
+.su-stat{background:#fff;border:1px solid var(--linea);border-radius:12px;padding:14px 16px;text-align:center;}
+.su-stat b{display:block;font-size:26px;color:var(--verde-osc);}
+.su-stat span{font-size:12px;color:var(--gris);}
 .su-temas{display:flex;flex-direction:column;gap:10px;margin-top:6px;max-height:260px;overflow-y:auto;border:1px solid var(--linea);border-radius:12px;padding:12px;background:#fff;}
 .su-temaud-tit{font-size:12.5px;font-weight:700;color:var(--verde-osc);display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
 .su-temaud-all{border:none;background:rgba(0,131,87,.08);color:var(--verde);font-size:10.5px;font-weight:600;border-radius:14px;padding:2px 9px;cursor:pointer;}
@@ -734,14 +738,41 @@ function Programa({ cat, materia }) {
     </div>
   );
 }
+function MaterialesDescargables({ catedraId }) {
+  const [docs, setDocs] = useState(null);
+  useEffect(() => {
+    let ok = true;
+    fetch(`/api/indexar?catedraId=${encodeURIComponent(catedraId)}`)
+      .then((r) => r.json()).then((d) => { if (ok) setDocs((d.documentos || []).filter((x) => x.estado === "indexado")); })
+      .catch(() => { if (ok) setDocs([]); });
+    return () => { ok = false; };
+  }, [catedraId]);
+  if (!docs || docs.length === 0) return null;
+  return (
+    <div className="su-section su-rise">
+      <span className="su-tag">Materiales de la cátedra</span>
+      <h3>Documentos del docente</h3>
+      {docs.map((d) => (
+        <div key={d.id} className="su-actrow">
+          <div>
+            <b>{d.titulo}</b>
+            <div className="su-mini">{d.archivo || ""}{d.paginas ? ` · ${d.paginas} pág.` : ""}</div>
+          </div>
+          {d.r2_key
+            ? <a className="su-btn ghost sm" href={`/api/archivo?documentoId=${encodeURIComponent(d.id)}`} download>⇩ Descargar</a>
+            : <span className="su-mini">consultable por el asistente</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Bibliografia({ cat }) {
   return (
     <div className="su-page su-rise">
       {cat.obligatoria.length > 0 && <div className="su-section"><span className="su-tag">Obligatoria / Básica</span><h3>Bibliografía obligatoria</h3>{cat.obligatoria.map((b, i) => <div className="su-li" key={i}><span className="mk">❦</span><span>{b}</span></div>)}</div>}
       <div className="su-section"><span className="su-tag">Complementaria</span><h3>Bibliografía complementaria</h3>{cat.complementaria.map((b, i) => <div className="su-li" key={i}><span className="mk">❧</span><span>{b}</span></div>)}</div>
-      <div className="su-section"><span className="su-tag">RAG</span><h3>Material indexado de la cátedra</h3>{cat.documentos.map((d, i) => (
-        <div className="su-doc" key={i}><div className="nm"><span>❦</span><span>{d.nombre}</span></div><span className={`su-badge ${d.estado === "indexado" ? "ok" : "proc"}`}>{d.estado === "indexado" ? "● indexado" : "○ procesando"}</span></div>
-      ))}</div>
+      <MaterialesDescargables catedraId={cat.id} />
     </div>
   );
 }
@@ -1065,6 +1096,18 @@ async function extraerPdfEnNavegador(file, onProgreso) {
   return { paginas, totalPaginas: doc.numPages };
 }
 
+async function extraerDocxEnNavegador(file) {
+  let mammoth;
+  try { mammoth = await import("mammoth/mammoth.browser"); }
+  catch { mammoth = await import("mammoth"); }
+  const m = mammoth.default || mammoth;
+  const arrayBuffer = await file.arrayBuffer();
+  const r = await m.extractRawText({ arrayBuffer });
+  const txt = (r.value || "").replace(/\s+/g, " ").trim();
+  if (!txt) return { paginas: [], totalPaginas: 0 };
+  return { paginas: [{ pagina: 1, texto: txt }], totalPaginas: 1 };
+}
+
 function textoLegible(paginas) {
   // Heurística anti-mojibake: proporción de caracteres fuera del rango esperable para castellano.
   const muestra = paginas.map((p) => p.texto).join(" ").slice(0, 4000);
@@ -1108,17 +1151,20 @@ function MaterialesDocente({ catedras }) {
   useEffect(() => { if (catId) cargarDocs(catId); }, [catId]);
   const subir = async (file) => {
     if (!file || fase === "leyendo" || fase === "indexando") return;
-    if (!/\.pdf$/i.test(file.name)) { setFase("error"); setMsj("Por ahora la carga web acepta PDF. Para Word/PowerPoint usá el script local (MarkItDown)."); return; }
+    const esPdf = /\.pdf$/i.test(file.name); const esDocx = /\.docx$/i.test(file.name);
+    if (!esPdf && !esDocx) { setFase("error"); setMsj("La carga web acepta PDF y Word (.docx). Para PowerPoint usá el script local (MarkItDown)."); return; }
     setFase("leyendo"); setProg(0); setMsj("Leyendo el PDF en tu navegador…");
     let docId = null;
     const ah = await authHeaders();
     try {
-      const { paginas, totalPaginas } = await extraerPdfEnNavegador(file, (p) => setProg(Math.round(p * 0.25)));
-      if (!paginas.length) throw new Error("No se pudo extraer texto. ¿Es un PDF escaneado? Necesitaría OCR.");
-      if (!textoLegible(paginas)) throw new Error("El texto extraído se ve ilegible (problema de codificación del PDF). Probá con el documento original en Word o re-exportá el PDF.");
+      const { paginas, totalPaginas } = esPdf
+        ? await extraerPdfEnNavegador(file, (p) => setProg(Math.round(p * 0.25)))
+        : await extraerDocxEnNavegador(file);
+      if (!paginas.length) throw new Error(esPdf ? "No se pudo extraer texto. ¿Es un PDF escaneado? Necesitaría OCR." : "No se pudo extraer texto del Word.");
+      if (!textoLegible(paginas)) throw new Error("⚠ El texto de este PDF se extrae ilegible (le falta el mapa de caracteres, un defecto del archivo). No se indexó nada para no ensuciar las respuestas del asistente. Solución: subí el documento original en Word (.docx) —esta misma pantalla lo acepta— o re-exportá el PDF desde el documento fuente.");
       const chunks = chunkearJS(paginas);
       setFase("indexando"); setMsj(`0/${chunks.length} fragmentos indexados`);
-      const rCrear = await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "crear", catedraId: catId, titulo: titulo.trim() || file.name.replace(/\.pdf$/i, ""), archivo: file.name, paginas: totalPaginas }) });
+      const rCrear = await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "crear", catedraId: catId, titulo: titulo.trim() || file.name.replace(/\.(pdf|docx)$/i, ""), archivo: file.name, paginas: totalPaginas }) });
       const dCrear = await rCrear.json(); if (dCrear.error) throw new Error(dCrear.error);
       docId = dCrear.documentoId;
       let hechos = 0;
@@ -1130,7 +1176,9 @@ function MaterialesDocente({ catedras }) {
         setProg(25 + Math.round((hechos / chunks.length) * 75));
         setMsj(`${hechos}/${chunks.length} fragmentos indexados`);
       }
-      await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "estado", documentoId: docId, estado: "indexado" }) });
+      await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "estado", documentoId: docId, estado: "indexado", catedraId: catId }) });
+      // Guardo el archivo original en R2 (si está configurado); no bloquea el indexado
+      try { await fetch(`/api/archivo?documentoId=${encodeURIComponent(docId)}`, { method: "PUT", headers: { ...ah }, body: file }); } catch {}
       setFase("listo"); setProg(100); setMsj("Documento indexado. El asistente ya lo usa en sus respuestas.");
       setTitulo(""); if (fileRef.current) fileRef.current.value = "";
       cargarDocs(catId);
@@ -1157,8 +1205,8 @@ function MaterialesDocente({ catedras }) {
           <div><label className="su-label">Título del documento (opcional)</label><input className="su-field" value={titulo} placeholder="Apunte Unidad 2 · La lógica" onChange={(e) => setTitulo(e.target.value)} disabled={ocupado} /></div>
         </div>
         <div style={{ marginTop: 12 }}>
-          <input ref={fileRef} type="file" accept=".pdf,application/pdf" style={{ display: "none" }} onChange={(e) => subir(e.target.files?.[0])} />
-          <button className="su-btn full" onClick={() => fileRef.current?.click()} disabled={ocupado}>{ocupado ? "Procesando…" : "⇪ Elegir PDF y subir"}</button>
+          <input ref={fileRef} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: "none" }} onChange={(e) => subir(e.target.files?.[0])} />
+          <button className="su-btn full" onClick={() => fileRef.current?.click()} disabled={ocupado}>{ocupado ? "Procesando…" : "⇪ Elegir PDF o Word y subir"}</button>
         </div>
         {fase && (
           <div style={{ marginTop: 12 }}>
@@ -1166,7 +1214,7 @@ function MaterialesDocente({ catedras }) {
             <p className="su-mini" style={{ marginTop: 6, color: fase === "error" ? "var(--rojo)" : "var(--gris)" }}>{msj}</p>
           </div>
         )}
-        <p className="su-mini" style={{ marginTop: 8 }}>El PDF se lee en tu navegador y solo el texto viaja al servidor. PDFs escaneados (imagen) no tienen texto extraíble: convertilos con OCR o subí el original. El título es lo que el asistente cita como fuente.</p>
+        <p className="su-mini" style={{ marginTop: 8 }}>El archivo se lee en tu navegador. PDFs escaneados (imagen) no tienen texto extraíble: convertilos con OCR o subí el Word original. El título es lo que el asistente cita como fuente. Si el almacenamiento está configurado, el original queda disponible para descargar desde Bibliografía.</p>
       </div>
       <div className="su-section">
         <h3 style={{ marginTop: 0 }}>Documentos de la cátedra</h3>
@@ -1186,11 +1234,122 @@ function MaterialesDocente({ catedras }) {
   );
 }
 
+/* --------------------------- ADMINISTRACIÓN ------------------------------ */
+const MODELOS_SUGERIDOS = [
+  "anthropic/claude-3.5-sonnet", "anthropic/claude-3.5-haiku",
+  "openai/gpt-4o-mini", "google/gemini-2.0-flash-001",
+  "meta-llama/llama-3.3-70b-instruct", "qwen/qwen-2.5-72b-instruct",
+];
+function AdminPanel() {
+  const [sub, setSub] = useState("config");
+  const [usuarios, setUsuarios] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [cfg, setCfg] = useState(null);
+  const [origen, setOrigen] = useState({});
+  const [msj, setMsj] = useState("");
+  const cargar = async (cual) => {
+    setMsj("");
+    const ah = await authHeaders();
+    try {
+      const r = await fetch(`/api/admin?seccion=${cual === "usuarios" ? "usuarios" : cual === "stats" ? "analiticas" : "config"}`, { headers: ah });
+      const d = await r.json();
+      if (d.error) { setMsj(d.error); return; }
+      if (cual === "usuarios") setUsuarios(d.usuarios || []);
+      else if (cual === "stats") setStats(d);
+      else { setCfg(d.config || {}); setOrigen(d.origen || {}); }
+    } catch { setMsj("No se pudo cargar la sección."); }
+  };
+  useEffect(() => { cargar(sub === "usuarios" ? "usuarios" : sub === "stats" ? "stats" : "config"); }, [sub]);
+  const cambiarRol = async (email, rol) => {
+    const ah = await authHeaders();
+    const r = await fetch("/api/admin", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "rol", email, rol }) });
+    const d = await r.json();
+    if (d.error) { setMsj(d.error); return; }
+    setUsuarios((prev) => prev.map((u) => (u.email === email ? { ...u, rol } : u)));
+  };
+  const guardarCfg = async (clave, valor) => {
+    const ah = await authHeaders();
+    const r = await fetch("/api/admin", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "config", clave, valor }) });
+    const d = await r.json();
+    if (d.error) { setMsj(d.error); return; }
+    setOrigen((p) => ({ ...p, [clave]: valor === "" ? "entorno" : "panel" }));
+    setMsj(`Guardado: ${clave}. Aplica desde la próxima consulta, sin redeploy.`);
+  };
+  const SUBS = [{ id: "config", t: "Modelos y RAG" }, { id: "usuarios", t: "Usuarios" }, { id: "stats", t: "Analíticas" }];
+  const fIngreso = (x) => x ? new Date(x).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "—";
+  const CampoCfg = ({ clave, label, ayuda, lista }) => (
+    <div style={{ marginTop: 12 }}>
+      <label className="su-label">{label} <span className="su-mini">· origen: {origen[clave] === "panel" ? "panel" : "variables de entorno"}</span></label>
+      <div className="su-row">
+        <input className="su-field" list={lista ? `dl-${clave}` : undefined} value={cfg[clave] ?? ""} onChange={(e) => setCfg((p) => ({ ...p, [clave]: e.target.value }))} style={{ flex: 1 }} />
+        <button className="su-btn sm" onClick={() => guardarCfg(clave, cfg[clave] ?? "")}>Guardar</button>
+      </div>
+      {lista && <datalist id={`dl-${clave}`}>{MODELOS_SUGERIDOS.map((m) => <option key={m} value={m} />)}</datalist>}
+      {ayuda && <p className="su-mini" style={{ marginTop: 5 }}>{ayuda}</p>}
+    </div>
+  );
+  return (
+    <div className="su-page su-rise">
+      <div className="su-section">
+        <div className="su-seg" style={{ maxWidth: 460 }}>{SUBS.map((x) => <button key={x.id} className={sub === x.id ? "on" : ""} onClick={() => setSub(x.id)}>{x.t}</button>)}</div>
+        {msj && <p className="su-mini" style={{ marginTop: 10, color: "var(--verde-osc)" }}>{msj}</p>}
+        {sub === "config" && (cfg === null ? <p className="su-mini" style={{ marginTop: 12 }}>Cargando…</p> : (
+          <div>
+            <h3 style={{ marginTop: 16 }}>Modelos por función</h3>
+            <p className="su-mini" style={{ marginTop: -4 }}>Los cambios pisan a las variables de entorno y aplican al instante (sin redeploy). Dejá un campo vacío y guardá para volver al valor del entorno. Podés alternar entre modelos gratuitos (sufijo ":free") y de pago según el momento.</p>
+            <CampoCfg clave="OPENROUTER_MODEL" label="Asistente de estudio (respuestas a alumnos)" lista ayuda="Modelo de OpenRouter para el chat con RAG." />
+            <CampoCfg clave="MODEL_ACTIVIDADES" label="Generación docente (consignas, casos, planificación)" lista ayuda="Vacío = usa el mismo modelo del asistente." />
+            <h3 style={{ marginTop: 22 }}>RAG</h3>
+            <CampoCfg clave="EMBED_MODEL" label="Modelo de embeddings" ayuda="⚠ Cambiarlo invalida lo indexado: hay que borrar los documentos y re-indexarlos, porque los vectores de modelos distintos no son comparables." />
+            <CampoCfg clave="RAG_MATCH_COUNT" label="Fragmentos recuperados por consulta" ayuda="Más fragmentos = más contexto y más costo. 6 es un buen punto medio." />
+            <CampoCfg clave="RAG_MIN_SIM" label="Umbral mínimo de similitud (0 a 1)" ayuda="Si el asistente trae fragmentos poco relevantes, subilo; si dice que no encuentra nada, bajalo." />
+          </div>
+        ))}
+        {sub === "usuarios" && (usuarios === null ? <p className="su-mini" style={{ marginTop: 12 }}>Cargando…</p> : (
+          <div style={{ marginTop: 14 }}>
+            {usuarios.length === 0 && <p className="su-mini">Todavía no hay usuarios registrados con cuenta institucional. (Los ingresos en modo demo no se registran.)</p>}
+            {usuarios.map((u) => (
+              <div key={u.email} className="su-actrow">
+                <div>
+                  <b>{u.nombre || u.email}</b>
+                  <div className="su-mini">{u.email} · último ingreso: {fIngreso(u.ultimo_ingreso)}</div>
+                </div>
+                <select className="su-field" style={{ width: 150 }} value={u.rol} onChange={(e) => cambiarRol(u.email, e.target.value)}>
+                  <option value="estudiante">estudiante</option><option value="docente">docente</option><option value="autoridad">autoridad</option>
+                </select>
+              </div>
+            ))}
+          </div>
+        ))}
+        {sub === "stats" && (stats === null ? <p className="su-mini" style={{ marginTop: 12 }}>Cargando…</p> : (
+          <div style={{ marginTop: 14 }}>
+            <div className="su-statgrid">
+              <div className="su-stat"><b>{stats.usuarios_total}</b><span>usuarios registrados</span></div>
+              <div className="su-stat"><b>{stats.ultimos_30_dias?.consulta || 0}</b><span>consultas al asistente (30 días)</span></div>
+              <div className="su-stat"><b>{stats.ultimos_30_dias?.indexacion || 0}</b><span>documentos indexados (30 días)</span></div>
+              <div className="su-stat"><b>{(stats.rag || []).reduce((a, c) => a + (c.chunks || 0), 0)}</b><span>fragmentos en el RAG</span></div>
+            </div>
+            <h3 style={{ marginTop: 20 }}>Consultas por cátedra (30 días)</h3>
+            {Object.keys(stats.consultas_por_catedra || {}).length === 0 && <p className="su-mini">Sin consultas registradas todavía. (Se registran desde que se creó la tabla de eventos.)</p>}
+            {Object.entries(stats.consultas_por_catedra || {}).map(([cid, n]) => (
+              <div key={cid} className="su-actrow"><b>{cid}</b><span className="su-mini">{n} consultas</span></div>
+            ))}
+            <h3 style={{ marginTop: 20 }}>Cobertura del RAG</h3>
+            {(stats.rag || []).map((c) => (
+              <div key={c.catedra_id} className="su-actrow"><b>{c.catedra_id}</b><span className="su-mini">{c.documentos_indexados}/{c.documentos} documentos · {c.chunks} fragmentos</span></div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* --------------------- PANEL (docente / autoridad) ---------------------- */
 function Panel({ session, catedras, setCatedras, actividades, setActividades, onLogout, onSwitchRole }) {
   const esAutoridad = session.role === "autoridad";
   const rolSeg = esAutoridad ? "autoridad" : "docente";
-  const validos = esAutoridad ? ["general", "todas", "acts", "planif", "mat"] : ["mis", "acts", "planif", "mat"];
+  const validos = esAutoridad ? ["general", "todas", "acts", "planif", "mat", "admin"] : ["mis", "acts", "planif", "mat"];
   const hashTab = (() => { const p = leerHash(); return p[0] === rolSeg && validos.includes(p[1]) ? p[1] : null; })();
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTabRaw] = useState(hashTab || (esAutoridad ? "general" : "mis"));
@@ -1198,8 +1357,8 @@ function Panel({ session, catedras, setCatedras, actividades, setActividades, on
   useEffect(() => { escribirHash(`${rolSeg}/${tab}`); }, []);
   const [editing, setEditing] = useState(null);
   const mias = catedras.filter((c) => c.docenteEmail === session.email);
-  const navs = esAutoridad ? [{ id: "general", ic: "▦", t: "Panel general" }, { id: "todas", ic: "❧", t: "Cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }, { id: "mat", ic: "⇪", t: "Materiales" }] : [{ id: "mis", ic: "❧", t: "Mis cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }, { id: "mat", ic: "⇪", t: "Materiales" }];
-  const titulo = { general: "Panel general", todas: "Todas las cátedras", mis: "Mis cátedras", acts: "Actividades", planif: "Planificación de cátedra", mat: "Materiales de la cátedra" }[tab];
+  const navs = esAutoridad ? [{ id: "general", ic: "▦", t: "Panel general" }, { id: "todas", ic: "❧", t: "Cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }, { id: "mat", ic: "⇪", t: "Materiales" }, { id: "admin", ic: "⚙", t: "Administración" }] : [{ id: "mis", ic: "❧", t: "Mis cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }, { id: "mat", ic: "⇪", t: "Materiales" }];
+  const titulo = { general: "Panel general", todas: "Todas las cátedras", mis: "Mis cátedras", acts: "Actividades", planif: "Planificación de cátedra", mat: "Materiales de la cátedra", admin: "Administración" }[tab];
   return (
     <div className="su-shell">
       <aside className={`su-aside ${collapsed ? "collapsed" : ""}`}>
@@ -1216,6 +1375,7 @@ function Panel({ session, catedras, setCatedras, actividades, setActividades, on
             : tab === "acts" ? <ActividadesDocente catedras={esAutoridad ? catedras : mias} actividades={actividades} setActividades={setActividades} />
             : tab === "planif" ? <PlanificadorDocente catedras={esAutoridad ? catedras : mias} />
             : tab === "mat" ? <MaterialesDocente catedras={esAutoridad ? catedras : mias} />
+            : tab === "admin" ? <AdminPanel />
             : tab === "general" ? <PanelGeneral catedras={catedras} onNew={() => setEditing("nueva")} onEdit={setEditing} />
               : <ListaCatedras catedras={tab === "todas" ? catedras : mias} titulo={tab === "todas" ? "Cátedras de las 5 materias" : "Cátedras a tu cargo"} onNew={() => setEditing("nueva")} onEdit={setEditing} vacio={tab === "mis" ? "Todavía no tenés cátedras. Creá la primera." : ""} />}
         </div>

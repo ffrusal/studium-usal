@@ -26,7 +26,7 @@ export async function onRequestGet({ request, env }) {
   const catedraId = url.searchParams.get("catedraId");
   if (!catedraId) return json({ error: "Falta catedraId" }, 400);
   // documentos de la cátedra
-  const docs = await sbFetch(env, `documentos?catedra_id=eq.${encodeURIComponent(catedraId)}&select=id,titulo,archivo,paginas,estado,creado_en&order=creado_en.desc`);
+  const docs = await sbFetch(env, `documentos?catedra_id=eq.${encodeURIComponent(catedraId)}&select=id,titulo,archivo,paginas,estado,creado_en,r2_key&order=creado_en.desc`);
   // conteo de chunks por documento (una consulta agregada)
   const conteos = await sbFetch(env, `chunks?catedra_id=eq.${encodeURIComponent(catedraId)}&select=documento_id`);
   const porDoc = {};
@@ -68,8 +68,9 @@ export async function onRequestPost({ request, env }) {
       if (chunks.length > MAX_CHUNKS_POR_LOTE)
         return json({ error: `Máximo ${MAX_CHUNKS_POR_LOTE} chunks por solicitud` }, 400);
       const textos = chunks.map((c) => String(c.contenido || "").slice(0, MAX_CHARS_CHUNK));
-      const vecs = await embed(textos, env);
-      const dim = parseInt(env.EMBED_DIM || "2048", 10);
+      const cfg = await leerConfig(env);
+      const vecs = await embed(textos, env, cfg);
+      const dim = parseInt(cfg.EMBED_DIM || env.EMBED_DIM || "2048", 10);
       const filas = chunks.map((c, i) => {
         if (vecs[i].length !== dim) throw new Error(`Dimensión inesperada ${vecs[i].length} (esperaba ${dim})`);
         return {
@@ -87,6 +88,7 @@ export async function onRequestPost({ request, env }) {
       const { documentoId, estado } = body;
       if (!documentoId || !estado) return json({ error: "Falta documentoId o estado" }, 400);
       await sbFetch(env, `documentos?id=eq.${encodeURIComponent(documentoId)}`, "PATCH", { estado }, "return=minimal");
+      if (estado === "indexado") registrarEvento(env, "indexacion", body.catedraId);
       return json({ ok: true });
     }
 
@@ -122,7 +124,7 @@ async function verificarRol(request, env) {
 }
 
 // ---- embeddings (OpenRouter, OpenAI-compatible) ----
-async function embed(textos, env) {
+async function embed(textos, env, cfg = {}) {
   const r = await fetch("https://openrouter.ai/api/v1/embeddings", {
     method: "POST",
     headers: {
@@ -133,13 +135,13 @@ async function embed(textos, env) {
     },
     body: JSON.stringify({
       input: textos,
-      model: env.EMBED_MODEL || "qwen/qwen3-embedding-8b",
+      model: cfg.EMBED_MODEL || env.EMBED_MODEL || "qwen/qwen3-embedding-8b",
       encoding_format: "float",
     }),
   });
   if (!r.ok) throw new Error(`OpenRouter embeddings ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const j = await r.json();
-  const dim = parseInt(env.EMBED_DIM || "2048", 10);
+  const dim = parseInt(cfg.EMBED_DIM || env.EMBED_DIM || "2048", 10);
   return j.data
     .sort((a, b) => a.index - b.index)
     .map((d) => (d.embedding.length > dim ? d.embedding.slice(0, dim) : d.embedding));
@@ -161,6 +163,31 @@ async function sbFetch(env, ruta, metodo = "GET", body = null, prefer = null) {
   if (r.status === 204) return null;
   const txt = await r.text();
   return txt ? JSON.parse(txt) : null;
+}
+
+async function leerConfig(env) {
+  try {
+    const r = await fetch(`${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/config?select=clave,valor`, {
+      headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
+    });
+    if (!r.ok) return {};
+    const out = {};
+    for (const f of await r.json()) if (f.valor !== "") out[f.clave] = f.valor;
+    return out;
+  } catch { return {}; }
+}
+
+function registrarEvento(env, tipo, catedra_id) {
+  try {
+    fetch(`${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/eventos`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        "Content-Type": "application/json", Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ tipo, catedra_id: catedra_id || null }),
+    }).catch(() => {});
+  } catch {}
 }
 
 function faltantes(env) {

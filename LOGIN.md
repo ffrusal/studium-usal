@@ -76,3 +76,50 @@ indexar materiales (útil mientras probás). Cuando pongas `REQUIRE_AUTH=true`:
 - **autoridad**: entra al panel y conserva el switch para previsualizar las
   tres vistas (útil para gestión).
 - El **modo demo** mantiene el switch siempre, como hasta ahora.
+
+---
+
+# Administración, analíticas y archivos originales (R2)
+
+## SQL previo
+
+Ejecutá `sql/03_admin_r2.sql` en Supabase. Crea la tabla `config` (configuración
+editable desde el panel), `eventos` (analíticas de uso) y agrega la columna
+`r2_key` a documentos.
+
+## Panel de Administración
+
+Visible en la vista **Autoridad** → sección "Administración" (⚙). Tres pestañas:
+
+- **Modelos y RAG**: cambiá el modelo del asistente, el de generación docente
+  (consignas/planificación), el de embeddings y los parámetros del RAG.
+  Los cambios se guardan en la tabla `config`, **pisan a las variables de
+  entorno y aplican al instante, sin redeploy**. Campo vacío + Guardar =
+  volver al valor del entorno. Para alternar free/pago: usá el slug con o sin
+  sufijo `:free` (ej. `meta-llama/llama-3.3-70b-instruct:free`).
+  ⚠ Cambiar el **modelo de embeddings** exige borrar y re-indexar los
+  documentos (vectores de modelos distintos no son comparables).
+- **Usuarios**: lista de cuentas institucionales con último ingreso y cambio
+  de rol con un desplegable. (El modo demo no registra usuarios.)
+- **Analíticas**: usuarios totales, consultas al asistente e indexaciones de
+  los últimos 30 días, consultas por cátedra y cobertura del RAG. Los eventos
+  se registran desde que existe la tabla `eventos`.
+
+Con `REQUIRE_AUTH=true`, /api/admin exige sesión real con rol **autoridad**.
+
+## Archivos originales (Cloudflare R2)
+
+Para que los PDFs/Word originales queden guardados y descargables desde
+**Bibliografía** (vista del alumno):
+
+1. En Cloudflare → **R2 Object Storage** → Create bucket → nombre sugerido:
+   `studium-archivos` (el plan gratuito incluye 10 GB).
+2. En tu proyecto de **Pages → Settings → Bindings → Add → R2 bucket**:
+   - Variable name: `ARCHIVOS`  ← exacto, así lo busca el código
+   - Bucket: `studium-archivos`
+3. Redeploy.
+
+Desde ahí, cada material subido por la web guarda también su archivo original,
+y en Bibliografía aparece el botón **⇩ Descargar**. Si el binding no está, la
+app funciona igual (solo no guarda originales). Los documentos indexados antes
+de configurar R2 no tienen original: re-subilos si querés que se puedan descargar.
