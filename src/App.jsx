@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { getSupa, authHeaders } from "./supa.js";
 
 /* =========================================================================
    STUDIUM USAL · Vicerrectorado de Formación  —  Prototipo v3
@@ -347,6 +348,8 @@ textarea.su-field{resize:vertical;min-height:90px;line-height:1.5;}
 .su-actrow:last-child{border-bottom:none;}
 .su-actrow b{display:block;color:var(--verde-osc);margin:3px 0;}
 .su-actform{margin-top:6px;}
+.su-demolink{display:block;width:100%;text-align:center;background:none;border:none;color:var(--gris);font-size:13px;margin-top:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-family:inherit;}
+.su-demolink:hover{color:var(--verde-osc);}
 .su-temas{display:flex;flex-direction:column;gap:10px;margin-top:6px;max-height:260px;overflow-y:auto;border:1px solid var(--linea);border-radius:12px;padding:12px;background:#fff;}
 .su-temaud-tit{font-size:12.5px;font-weight:700;color:var(--verde-osc);display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
 .su-temaud-all{border:none;background:rgba(0,131,87,.08);color:var(--verde);font-size:10.5px;font-weight:600;border-radius:14px;padding:2px 9px;cursor:pointer;}
@@ -462,8 +465,34 @@ export default function StudiumUSAL() {
       else localStorage.removeItem(LS_KEY);
     } catch {}
   }, [stage, session, ctx]);
-  const logout = () => { setSession(null); setCtx(null); setChats({}); setStage("login"); try { localStorage.removeItem(LS_KEY); } catch {} escribirHash("login"); };
+  // Sesión institucional real (Google OAuth): al volver del redirect o si hay sesión vigente
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      const supa = await getSupa();
+      if (!supa) return;
+      const entrar = async (tok) => {
+        try {
+          const r = await fetch("/api/perfil", { headers: { Authorization: `Bearer ${tok}` } });
+          const p = await r.json();
+          if (!activo || p.error) return;
+          const ses = { email: p.email, nombre: p.nombre, role: p.rol, rolReal: p.rol, real: true };
+          setSession(ses);
+          setStage(p.rol === "estudiante" ? "onboarding" : "panel");
+        } catch {}
+      };
+      const { data } = await supa.auth.getSession();
+      if (data?.session?.access_token && !session) entrar(data.session.access_token);
+      const { data: sub } = supa.auth.onAuthStateChange((ev, nueva) => {
+        if (ev === "SIGNED_IN" && nueva?.access_token) entrar(nueva.access_token);
+      });
+      return () => sub?.subscription?.unsubscribe?.();
+    })();
+    return () => { activo = false; };
+  }, []);
+  const logout = async () => { setSession(null); setCtx(null); setChats({}); setStage("login"); try { localStorage.removeItem(LS_KEY); } catch {} try { const supa = await getSupa(); await supa?.auth?.signOut(); } catch {} escribirHash("login"); };
   const switchRole = (role) => {
+    if (session?.real && session?.rolReal !== "autoridad") return; // sin permiso para cambiar
     setSession((s) => ({ ...s, role }));
     setStage(role === "estudiante" ? (ctx ? "app" : "onboarding") : "panel");
   };
@@ -480,6 +509,16 @@ export default function StudiumUSAL() {
 /* ------------------------------ LOGIN ----------------------------------- */
 function Login({ onDone }) {
   const [email, setEmail] = useState(""); const [role, setRole] = useState("estudiante"); const [err, setErr] = useState(""); const [logoOk, setLogoOk] = useState(true);
+  const [demo, setDemo] = useState(false);
+  const [tieneOAuth, setTieneOAuth] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
+  useEffect(() => { getSupa().then((s) => setTieneOAuth(!!s)); }, []);
+  const loginGoogle = async () => {
+    const supa = await getSupa(); if (!supa || oauthLoading) return;
+    setOauthLoading(true);
+    try { await supa.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin, queryParams: { hd: "usal.edu.ar", prompt: "select_account" } } }); }
+    catch { setErr("No se pudo iniciar el ingreso con Google."); setOauthLoading(false); }
+  };
   const ok = /^[^\s@]+@usal\.edu\.ar$/i.test(email.trim());
   const submit = () => { if (!ok) { setErr("Usá tu cuenta institucional @usal.edu.ar"); return; } onDone({ email: email.trim().toLowerCase(), role }); };
   return (
@@ -492,20 +531,32 @@ function Login({ onDone }) {
             <h1 className="su-login-title" style={{ marginTop: 4 }}>Iniciá sesión</h1>
             <p className="su-login-sub" style={{ margin: "6px auto 0", maxWidth: 330 }}>Filosofía · Teología · Ética · Ética Profesional · Seminario Filosófico-Teológico</p>
           </div>
+          {tieneOAuth && !demo && (
+            <button className="su-gbtn" onClick={loginGoogle} disabled={oauthLoading}>
+              <svg className="su-glogo" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.4 5.4 2.5 13.3l7.9 6.1C12.2 13.3 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-2.7-.4-3.9H24v7.4h12.7c-.3 2-1.6 5-4.7 7l7.3 5.6c4.3-4 6.8-9.9 6.8-16.1z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.5 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.3-5.6c-2 1.4-4.7 2.3-8.6 2.3-6.4 0-11.8-3.8-13.6-9.3l-7.9 6.1C6.4 42.6 14.6 48 24 48z"/></svg>
+              {oauthLoading ? "Redirigiendo a Google…" : "Ingresar con Google USAL"}
+            </button>
+          )}
+          {tieneOAuth && !demo && (
+            <button className="su-demolink" onClick={() => setDemo(true)}>Modo demostración (sin cuenta)</button>
+          )}
+          {(demo || !tieneOAuth) && (<>
+          {tieneOAuth && <button className="su-demolink" style={{ marginBottom: 10 }} onClick={() => setDemo(false)}>← Volver al ingreso institucional</button>}
           <div>
-            <label className="su-label">Cuenta institucional</label>
+            <label className="su-label">Cuenta institucional {tieneOAuth && <span className="su-mini">(demo: no valida contraseña)</span>}</label>
             <input className="su-field" type="email" placeholder="nombre.apellido@usal.edu.ar" value={email}
               onChange={(e) => { setEmail(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && submit()} />
             {err && <div style={{ color: "var(--rojo)", fontSize: 13, marginTop: 7 }}>{err}</div>}
           </div>
           <div style={{ marginTop: 16 }}>
-            <label className="su-label">Ingresar como <span className="su-mini">(en producción se detecta solo)</span></label>
+            <label className="su-label">Ingresar como <span className="su-mini">(solo en demo; con cuenta real el rol se detecta solo)</span></label>
             <div className="su-seg">{ROLES.map((r) => <button key={r.id} className={role === r.id ? "on" : ""} onClick={() => setRole(r.id)}>{r.t}</button>)}</div>
           </div>
           <button className="su-gbtn" style={{ marginTop: 18 }} onClick={submit} disabled={!ok}>
             <svg className="su-glogo" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.4 5.4 2.5 13.3l7.9 6.1C12.2 13.3 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-2.7-.4-3.9H24v7.4h12.7c-.3 2-1.6 5-4.7 7l7.3 5.6c4.3-4 6.8-9.9 6.8-16.1z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.5 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.3-5.6c-2 1.4-4.7 2.3-8.6 2.3-6.4 0-11.8-3.8-13.6-9.3l-7.9 6.1C6.4 42.6 14.6 48 24 48z"/></svg>
-            Continuar con Google
+            Entrar (demo)
           </button>
+          </>)}
         </div>
         <p className="su-foot"><span style={{ opacity: .75 }}>Universidad del Salvador</span> · <i className="su-disp">Scientiam do menti, cordi virtutem</i></p>
       </div>
@@ -591,8 +642,8 @@ function Brand({ sub }) {
 function Top({ crumb, titulo, session, onLogout, onSwitchRole }) {
   return <div className="su-top"><div><div className="crumb">{crumb}</div><h2>{titulo}</h2></div>
     <div className="su-userchip">
-      {onSwitchRole && (
-        <select className="su-roleswitch" value={session.role} onChange={(e) => onSwitchRole(e.target.value)} title="Cambiar de vista (demo)">
+      {onSwitchRole && (!session.real || session.rolReal === "autoridad") && (
+        <select className="su-roleswitch" value={session.role} onChange={(e) => onSwitchRole(e.target.value)} title="Cambiar de vista">
           <option value="estudiante">Vista: Estudiante</option>
           <option value="docente">Vista: Docente</option>
           <option value="autoridad">Vista: Autoridad</option>
@@ -993,11 +1044,153 @@ function PlanificadorDocente({ catedras }) {
   );
 }
 
+/* --------------------------- MATERIALES (indexación web) ---------------- */
+const CHUNK_TOKENS_W = 450, CHUNK_OVERLAP_W = 80, LOTE_W = 16;
+const tokAprox = (t) => Math.max(1, Math.round(t.split(/\s+/).filter(Boolean).length * 1.3));
+
+async function extraerPdfEnNavegador(file, onProgreso) {
+  const pdfjs = await import("pdfjs-dist");
+  const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
+  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  const data = await file.arrayBuffer();
+  const doc = await pdfjs.getDocument({ data }).promise;
+  const paginas = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const tc = await page.getTextContent();
+    const txt = tc.items.map((it) => it.str).join(" ").replace(/\s+/g, " ").trim();
+    if (txt) paginas.push({ pagina: i, texto: txt });
+    onProgreso && onProgreso(Math.round((i / doc.numPages) * 100));
+  }
+  return { paginas, totalPaginas: doc.numPages };
+}
+
+function textoLegible(paginas) {
+  // Heurística anti-mojibake: proporción de caracteres fuera del rango esperable para castellano.
+  const muestra = paginas.map((p) => p.texto).join(" ").slice(0, 4000);
+  if (!muestra) return false;
+  const raros = (muestra.match(/[^\x20-\x7EáéíóúüñÁÉÍÓÚÜÑ¿¡“”‘’—–·°ºª€\n]/g) || []).length;
+  return raros / muestra.length < 0.12;
+}
+
+function chunkearJS(paginas) {
+  const chunks = []; let pos = 0;
+  for (const { pagina, texto } of paginas) {
+    const palabras = texto.split(/\s+/).filter(Boolean);
+    let i = 0;
+    while (i < palabras.length) {
+      const ventana = []; let j = i;
+      while (j < palabras.length && tokAprox(ventana.join(" ")) < CHUNK_TOKENS_W) { ventana.push(palabras[j]); j++; }
+      const t = ventana.join(" ").trim();
+      if (t) { chunks.push({ contenido: t, pagina, posicion: pos++, tokens: tokAprox(t) }); }
+      if (j >= palabras.length) break;
+      let k = j;
+      while (k > i && tokAprox(palabras.slice(k, j).join(" ")) < CHUNK_OVERLAP_W) k--;
+      i = Math.max(k, i + 1);
+    }
+  }
+  return chunks;
+}
+
+function MaterialesDocente({ catedras }) {
+  const [catId, setCatId] = useState(catedras[0]?.id || "");
+  const [docs, setDocs] = useState(null);
+  const [titulo, setTitulo] = useState("");
+  const [fase, setFase] = useState("");       // "" | leyendo | indexando | listo | error
+  const [prog, setProg] = useState(0);
+  const [msj, setMsj] = useState("");
+  const fileRef = useRef(null);
+  const cargarDocs = async (id) => {
+    setDocs(null);
+    try { const r = await fetch(`/api/indexar?catedraId=${encodeURIComponent(id)}`); const d = await r.json(); setDocs(d.documentos || []); }
+    catch { setDocs([]); }
+  };
+  useEffect(() => { if (catId) cargarDocs(catId); }, [catId]);
+  const subir = async (file) => {
+    if (!file || fase === "leyendo" || fase === "indexando") return;
+    if (!/\.pdf$/i.test(file.name)) { setFase("error"); setMsj("Por ahora la carga web acepta PDF. Para Word/PowerPoint usá el script local (MarkItDown)."); return; }
+    setFase("leyendo"); setProg(0); setMsj("Leyendo el PDF en tu navegador…");
+    let docId = null;
+    const ah = await authHeaders();
+    try {
+      const { paginas, totalPaginas } = await extraerPdfEnNavegador(file, (p) => setProg(Math.round(p * 0.25)));
+      if (!paginas.length) throw new Error("No se pudo extraer texto. ¿Es un PDF escaneado? Necesitaría OCR.");
+      if (!textoLegible(paginas)) throw new Error("El texto extraído se ve ilegible (problema de codificación del PDF). Probá con el documento original en Word o re-exportá el PDF.");
+      const chunks = chunkearJS(paginas);
+      setFase("indexando"); setMsj(`0/${chunks.length} fragmentos indexados`);
+      const rCrear = await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "crear", catedraId: catId, titulo: titulo.trim() || file.name.replace(/\.pdf$/i, ""), archivo: file.name, paginas: totalPaginas }) });
+      const dCrear = await rCrear.json(); if (dCrear.error) throw new Error(dCrear.error);
+      docId = dCrear.documentoId;
+      let hechos = 0;
+      for (let b = 0; b < chunks.length; b += LOTE_W) {
+        const lote = chunks.slice(b, b + LOTE_W);
+        const r = await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "chunks", documentoId: docId, catedraId: catId, chunks: lote }) });
+        const d = await r.json(); if (d.error) throw new Error(d.error);
+        hechos += lote.length;
+        setProg(25 + Math.round((hechos / chunks.length) * 75));
+        setMsj(`${hechos}/${chunks.length} fragmentos indexados`);
+      }
+      await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "estado", documentoId: docId, estado: "indexado" }) });
+      setFase("listo"); setProg(100); setMsj("Documento indexado. El asistente ya lo usa en sus respuestas.");
+      setTitulo(""); if (fileRef.current) fileRef.current.value = "";
+      cargarDocs(catId);
+    } catch (e) {
+      if (docId) { try { await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "estado", documentoId: docId, estado: "error" }) }); } catch {} }
+      setFase("error"); setMsj(String(e.message || e));
+      cargarDocs(catId);
+    }
+  };
+  const borrar = async (id) => {
+    if (!confirm("¿Eliminar este documento y todos sus fragmentos indexados?")) return;
+    try { const ah = await authHeaders(); await fetch("/api/indexar", { method: "POST", headers: { "Content-Type": "application/json", ...ah }, body: JSON.stringify({ accion: "borrar", documentoId: id }) }); } catch {}
+    cargarDocs(catId);
+  };
+  const ocupado = fase === "leyendo" || fase === "indexando";
+  return (
+    <div className="su-page su-rise">
+      <div className="su-section">
+        <span className="su-tag">Materiales</span>
+        <h3>Subir material a la cátedra</h3>
+        <p style={{ color: "var(--gris)", fontSize: 14.5, marginTop: -4, marginBottom: 14 }}>El documento se procesa y queda disponible para el asistente de esta cátedra al instante: las respuestas a los estudiantes citan estos materiales.</p>
+        <div className="su-grid2">
+          <div><label className="su-label">Cátedra</label><select className="su-field" value={catId} onChange={(e) => setCatId(e.target.value)} disabled={ocupado}>{catedras.map((c) => { const m = MATERIAS.find((x) => x.id === c.materiaId); return <option key={c.id} value={c.id}>{m?.nombre} · {c.carrera || "General"}</option>; })}</select></div>
+          <div><label className="su-label">Título del documento (opcional)</label><input className="su-field" value={titulo} placeholder="Apunte Unidad 2 · La lógica" onChange={(e) => setTitulo(e.target.value)} disabled={ocupado} /></div>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <input ref={fileRef} type="file" accept=".pdf,application/pdf" style={{ display: "none" }} onChange={(e) => subir(e.target.files?.[0])} />
+          <button className="su-btn full" onClick={() => fileRef.current?.click()} disabled={ocupado}>{ocupado ? "Procesando…" : "⇪ Elegir PDF y subir"}</button>
+        </div>
+        {fase && (
+          <div style={{ marginTop: 12 }}>
+            {(ocupado || fase === "listo") && <div className="su-bar"><i style={{ width: `${prog}%` }} /></div>}
+            <p className="su-mini" style={{ marginTop: 6, color: fase === "error" ? "var(--rojo)" : "var(--gris)" }}>{msj}</p>
+          </div>
+        )}
+        <p className="su-mini" style={{ marginTop: 8 }}>El PDF se lee en tu navegador y solo el texto viaja al servidor. PDFs escaneados (imagen) no tienen texto extraíble: convertilos con OCR o subí el original. El título es lo que el asistente cita como fuente.</p>
+      </div>
+      <div className="su-section">
+        <h3 style={{ marginTop: 0 }}>Documentos de la cátedra</h3>
+        {docs === null && <p className="su-mini">Cargando…</p>}
+        {docs && docs.length === 0 && <p className="su-mini">Esta cátedra todavía no tiene materiales indexados.</p>}
+        {docs && docs.map((d) => (
+          <div key={d.id} className="su-actrow">
+            <div>
+              <div className="su-acttags"><span className="su-tag">{d.estado === "indexado" ? "Indexado" : d.estado === "procesando" ? "Procesando" : "Error"}</span><span className="su-mini">{d.archivo || ""}{d.paginas ? ` · ${d.paginas} pág.` : ""} · {d.chunks} fragmentos</span></div>
+              <b>{d.titulo}</b>
+            </div>
+            <button className="su-x" onClick={() => borrar(d.id)} title="Eliminar documento">✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* --------------------- PANEL (docente / autoridad) ---------------------- */
 function Panel({ session, catedras, setCatedras, actividades, setActividades, onLogout, onSwitchRole }) {
   const esAutoridad = session.role === "autoridad";
   const rolSeg = esAutoridad ? "autoridad" : "docente";
-  const validos = esAutoridad ? ["general", "todas", "acts", "planif"] : ["mis", "acts", "planif"];
+  const validos = esAutoridad ? ["general", "todas", "acts", "planif", "mat"] : ["mis", "acts", "planif", "mat"];
   const hashTab = (() => { const p = leerHash(); return p[0] === rolSeg && validos.includes(p[1]) ? p[1] : null; })();
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTabRaw] = useState(hashTab || (esAutoridad ? "general" : "mis"));
@@ -1005,8 +1198,8 @@ function Panel({ session, catedras, setCatedras, actividades, setActividades, on
   useEffect(() => { escribirHash(`${rolSeg}/${tab}`); }, []);
   const [editing, setEditing] = useState(null);
   const mias = catedras.filter((c) => c.docenteEmail === session.email);
-  const navs = esAutoridad ? [{ id: "general", ic: "▦", t: "Panel general" }, { id: "todas", ic: "❧", t: "Cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }] : [{ id: "mis", ic: "❧", t: "Mis cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }];
-  const titulo = { general: "Panel general", todas: "Todas las cátedras", mis: "Mis cátedras", acts: "Actividades", planif: "Planificación de cátedra" }[tab];
+  const navs = esAutoridad ? [{ id: "general", ic: "▦", t: "Panel general" }, { id: "todas", ic: "❧", t: "Cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }, { id: "mat", ic: "⇪", t: "Materiales" }] : [{ id: "mis", ic: "❧", t: "Mis cátedras" }, { id: "acts", ic: "✉", t: "Actividades" }, { id: "planif", ic: "◷", t: "Planificación" }, { id: "mat", ic: "⇪", t: "Materiales" }];
+  const titulo = { general: "Panel general", todas: "Todas las cátedras", mis: "Mis cátedras", acts: "Actividades", planif: "Planificación de cátedra", mat: "Materiales de la cátedra" }[tab];
   return (
     <div className="su-shell">
       <aside className={`su-aside ${collapsed ? "collapsed" : ""}`}>
@@ -1022,6 +1215,7 @@ function Panel({ session, catedras, setCatedras, actividades, setActividades, on
           {editing ? <CatedraForm session={session} catedras={catedras} setCatedras={setCatedras} editingId={editing} onClose={() => setEditing(null)} />
             : tab === "acts" ? <ActividadesDocente catedras={esAutoridad ? catedras : mias} actividades={actividades} setActividades={setActividades} />
             : tab === "planif" ? <PlanificadorDocente catedras={esAutoridad ? catedras : mias} />
+            : tab === "mat" ? <MaterialesDocente catedras={esAutoridad ? catedras : mias} />
             : tab === "general" ? <PanelGeneral catedras={catedras} onNew={() => setEditing("nueva")} onEdit={setEditing} />
               : <ListaCatedras catedras={tab === "todas" ? catedras : mias} titulo={tab === "todas" ? "Cátedras de las 5 materias" : "Cátedras a tu cargo"} onNew={() => setEditing("nueva")} onEdit={setEditing} vacio={tab === "mis" ? "Todavía no tenés cátedras. Creá la primera." : ""} />}
         </div>

@@ -15,3 +15,10 @@ SUPABASE_SERVICE_KEY=tu-service-role-key-secreta
 # --- RAG: ajustes de búsqueda (opcionales) ---
 RAG_MATCH_COUNT=6
 RAG_MIN_SIM=0.15
+
+# --- Login institucional (ver LOGIN.md) ---
+SUPABASE_ANON_KEY=tu-anon-key
+REQUIRE_AUTH=false
+# Las VITE_ van también como variables de BUILD (Cloudflare las inyecta al compilar):
+VITE_SUPABASE_URL=https://TU-PROYECTO.supabase.co
+VITE_SUPABASE_ANON_KEY=tu-anon-key
